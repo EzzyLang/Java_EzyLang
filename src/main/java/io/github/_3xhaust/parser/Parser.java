@@ -1,6 +1,8 @@
 package io.github._3xhaust.parser;
 import io.github._3xhaust.token.Token;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,14 +33,20 @@ public class Parser {
         if(Objects.equals(currentPosition().getToken(), new Token(Token.STRING_LITERAL).getToken())) {
             System.out.println(currentPosition().getValue());
         }else {
-            System.out.println(expression());
+            BigDecimal result = expression();
+
+            if (result.stripTrailingZeros().scale() <= 0) {
+                System.out.println(result.toBigInteger());
+            } else {
+                System.out.println(result);
+            }
         }
 
         position++; // ")" 토큰 처리
     }
 
-    private int expression() {
-        int left = primary();
+    private BigDecimal expression() {
+        BigDecimal left = primary();
 
         while (Objects.equals(currentPosition().getToken(), new Token(Token.PLUS).getToken()) ||
                 Objects.equals(currentPosition().getToken(), new Token(Token.MINUS).getToken()) ||
@@ -46,29 +54,35 @@ public class Parser {
                 Objects.equals(currentPosition().getToken(), new Token(Token.SLASH).getToken()) ||
                 Objects.equals(currentPosition().getToken(), new Token(Token.PERCENT).getToken())) {
             Token operator = currentPosition();
-            position++; // 연산자 토큰 처리
-            int right = primary();
+            position++; // Move past the operator token
+            BigDecimal right = primary();
 
-            if (Objects.equals(operator.getToken(), new Token(Token.PLUS).getToken())) {
-                left += right;
-            } else if (Objects.equals(operator.getToken(), new Token(Token.MINUS).getToken())) {
-                left -= right;
-            } else if (Objects.equals(operator.getToken(), new Token(Token.ASTERISK).getToken())) {
-                left *= right;
-            } else if (Objects.equals(operator.getToken(), new Token(Token.SLASH).getToken())) {
-                left /= right;
-            } else if (Objects.equals(operator.getToken(), new Token(Token.PERCENT).getToken())) {
-                left %= right;
+            switch (operator.getToken()) {
+                case Token.PLUS:
+                    left = left.add(right);
+                    break;
+                case Token.MINUS:
+                    left = left.subtract(right);
+                    break;
+                case Token.ASTERISK:
+                    left = left.multiply(right);
+                    break;
+                case Token.SLASH:
+                    left = left.divide(right, MathContext.DECIMAL128);
+                    break;
+                case Token.PERCENT:
+                    left = left.remainder(right);
+                    break;
             }
         }
 
         return left;
     }
 
-    private int primary() {
+    private BigDecimal primary() {
         Token token = currentPosition();
-        position++;
-        return Integer.parseInt(token.getValue());
+        position++; // Move past the current token
+        return new BigDecimal(token.getValue());
     }
 
     private Token currentPosition() {
