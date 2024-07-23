@@ -46,16 +46,13 @@ public class Parser {
     }
 
     private BigDecimal expression() {
-        BigDecimal left = primary();
+        BigDecimal left = term();
 
         while (Objects.equals(currentPosition().getToken(), new Token(Token.PLUS).getToken()) ||
-                Objects.equals(currentPosition().getToken(), new Token(Token.MINUS).getToken()) ||
-                Objects.equals(currentPosition().getToken(), new Token(Token.ASTERISK).getToken()) ||
-                Objects.equals(currentPosition().getToken(), new Token(Token.SLASH).getToken()) ||
-                Objects.equals(currentPosition().getToken(), new Token(Token.PERCENT).getToken())) {
+                Objects.equals(currentPosition().getToken(), new Token(Token.MINUS).getToken())) {
             Token operator = currentPosition();
-            position++; // Move past the operator token
-            BigDecimal right = primary();
+            position++;
+            BigDecimal right = term();
 
             switch (operator.getToken()) {
                 case Token.PLUS:
@@ -64,6 +61,23 @@ public class Parser {
                 case Token.MINUS:
                     left = left.subtract(right);
                     break;
+            }
+        }
+
+        return left;
+    }
+
+    private BigDecimal term() {
+        BigDecimal left = primary();
+
+        while (Objects.equals(currentPosition().getToken(), new Token(Token.ASTERISK).getToken()) ||
+                Objects.equals(currentPosition().getToken(), new Token(Token.SLASH).getToken()) ||
+                Objects.equals(currentPosition().getToken(), new Token(Token.PERCENT).getToken())) {
+            Token operator = currentPosition();
+            position++;
+            BigDecimal right = primary();
+
+            switch (operator.getToken()) {
                 case Token.ASTERISK:
                     left = left.multiply(right);
                     break;
