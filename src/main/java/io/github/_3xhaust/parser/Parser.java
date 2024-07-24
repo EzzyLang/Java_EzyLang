@@ -70,6 +70,22 @@ public class Parser {
 
         consume(Token.RIGHT_BRACE);
 
+        while (currentPosition().getToken().equals(Token.ELSE_IF)) {
+            consume(Token.ELSE_IF);
+            consume(Token.LEFT_PAREN);
+            condition = expression();
+            consume(Token.RIGHT_PAREN);
+            consume(Token.LEFT_BRACE);
+
+            if (condition.compareTo(BigDecimal.ZERO) != 0) {
+                block();
+            } else {
+                skipBlock();
+            }
+
+            consume(Token.RIGHT_BRACE);
+        }
+
         if (currentPosition().getToken().equals(Token.ELSE)) {
             consume(Token.ELSE);
             consume(Token.LEFT_BRACE);

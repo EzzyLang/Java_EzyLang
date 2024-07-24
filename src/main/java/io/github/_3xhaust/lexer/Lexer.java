@@ -20,23 +20,24 @@ public class Lexer {
         while (position < input.length()) {
             char current = input.charAt(position);
 
-            if (Character.isDigit(current)) {
+            if (Character.isDigit(current))
                 tokenizeNumber();
-            } else if (current == '\"' || current == '\'') {
+            else if (current == '\"' || current == '\'')
                 tokenizeStringLiteral(current);
-            } else if (current == 'p') {
+            else if (current == 'p')
                 tokenizePrintKeyword();
-            } else if(current == 'i') {
+            else if(current == 'i')
                 tokenizeIfKeyword();
-            } else if(current == 'e') {
-                tokenizeElseKeyword();
+            else if(current == 'e') {
+                if(input.startsWith("else if", position)) {
+                    tokenizeElseIfKeyword();
+                } else tokenizeElseKeyword();
+
             } else if (current == '\n' || current == '\r') {
                 line++;
                 column = 1;
                 position++;
-            } else {
-                tokenizeSymbol(current);
-            }
+            } else tokenizeSymbol(current);
         }
 
         tokens.add(new Token(Token.EOF, null, line, column));
@@ -76,6 +77,14 @@ public class Lexer {
             column += 4;
         }
     }
+
+    private void tokenizeElseIfKeyword() {
+    if (input.startsWith("else if", position)) {
+        tokens.add(new Token(Token.ELSE_IF, null, line, column));
+        position += 7;
+        column += 7;
+    }
+}
 
     private void tokenizeStringLiteral(char quote) {
         StringBuilder stringLiteral = new StringBuilder();
