@@ -14,7 +14,6 @@ public class Parser {
 
     public Parser(List<Token> tokens) {
         this.tokens = tokens;
-        // for(Token token : tokens) System.out.println(token.getToken());
     }
 
     public void parse() {
@@ -33,8 +32,10 @@ public class Parser {
             printStatement();
         } else if (Objects.equals(currentPosition().getToken(), Token.IF)) {
             ifStatement();
-        } else {
-            position++;
+        }
+
+        if (!isAtEnd() && !currentPosition().getToken().equals(Token.SEMICOLON)) {
+            throw new ParseException("Expected ';'", currentPosition().getLine(), currentPosition().getColumn());
         }
     }
 
@@ -42,17 +43,25 @@ public class Parser {
         consume(Token.PRINT);
         consume(Token.LEFT_PAREN);
 
-        if (Objects.equals(currentPosition().getToken(), Token.STRING_LITERAL)) {
+        if (currentPosition().getToken().equals(Token.STRING_LITERAL)) {
             System.out.println(currentPosition().getValue());
+            consume(Token.STRING_LITERAL);
         } else {
-            BigDecimal result = arithmeticExpression();
+            BigDecimal result = expression();
 
-            if (result.stripTrailingZeros().scale() <= 0) {
-                System.out.println(result.toBigInteger());
+            if (result.compareTo(BigDecimal.ZERO) == 0) {
+                System.out.println("false");
+            } else if (result.compareTo(BigDecimal.ONE) == 0) {
+                System.out.println("true");
             } else {
-                System.out.println(result);
+                if (result.stripTrailingZeros().scale() <= 0) {
+                    System.out.println(result.toBigInteger());
+                } else {
+                    System.out.println(result);
+                }
             }
         }
+
         consume(Token.RIGHT_PAREN);
     }
 
@@ -61,11 +70,11 @@ public class Parser {
 
         consume(Token.IF);
         consume(Token.LEFT_PAREN);
-        BigDecimal condition = expression();
+        boolean condition = evaluateExpression();
         consume(Token.RIGHT_PAREN);
         consume(Token.LEFT_BRACE);
 
-        if (condition.compareTo(BigDecimal.ZERO) != 0) {
+        if (condition) {
             block();
             conditionMet = true;
         } else {
@@ -77,11 +86,11 @@ public class Parser {
         while (currentPosition().getToken().equals(Token.ELSE_IF)) {
             consume(Token.ELSE_IF);
             consume(Token.LEFT_PAREN);
-            condition = expression();
+            condition = evaluateExpression();
             consume(Token.RIGHT_PAREN);
             consume(Token.LEFT_BRACE);
 
-            if (!conditionMet && condition.compareTo(BigDecimal.ZERO) != 0) {
+            if (!conditionMet && condition) {
                 block();
                 conditionMet = true;
             } else {
@@ -128,6 +137,11 @@ public class Parser {
         return position >= tokens.size();
     }
 
+    private boolean evaluateExpression() throws ParseException {
+        BigDecimal result = expression();
+        return result.compareTo(BigDecimal.ZERO) != 0;
+    }
+
     private BigDecimal expression() throws ParseException {
         return logicalOrExpression();
     }
@@ -138,7 +152,7 @@ public class Parser {
         while (currentPosition().getToken().equals(Token.OR)) {
             position++;
             BigDecimal right = logicalAndExpression();
-            left = BigDecimal.valueOf((left.compareTo(BigDecimal.ZERO) != 0 || right.compareTo(BigDecimal.ZERO) != 0) ? 1 : 0);
+            left = (left.compareTo(BigDecimal.ZERO) != 0 || right.compareTo(BigDecimal.ZERO) != 0) ? BigDecimal.ONE : BigDecimal.ZERO;
         }
 
         return left;
@@ -149,10 +163,8 @@ public class Parser {
 
         while (currentPosition().getToken().equals(Token.AND)) {
             position++;
-            System.out.println(currentPosition().getToken());
-            for(Token token : tokens) System.out.println(token.getToken());
             BigDecimal right = equalityExpression();
-            left = BigDecimal.valueOf((left.compareTo(BigDecimal.ZERO) != 0 && right.compareTo(BigDecimal.ZERO) != 0) ? 1 : 0);
+            left = (left.compareTo(BigDecimal.ZERO) != 0 && right.compareTo(BigDecimal.ZERO) != 0) ? BigDecimal.ONE : BigDecimal.ZERO;
         }
 
         return left;
@@ -173,12 +185,12 @@ public class Parser {
             BigDecimal right = arithmeticExpression();
 
             return switch (operator) {
-                case Token.EQUAL_EQUAL -> BigDecimal.valueOf(left.compareTo(right) == 0 ? 1 : 0);
-                case Token.NOT_EQUAL -> BigDecimal.valueOf(left.compareTo(right) != 0 ? 1 : 0);
-                case Token.LESS_THAN -> BigDecimal.valueOf(left.compareTo(right) < 0 ? 1 : 0);
-                case Token.GREATER_THAN -> BigDecimal.valueOf(left.compareTo(right) > 0 ? 1 : 0);
-                case Token.LESS_THAN_OR_EQUAL -> BigDecimal.valueOf(left.compareTo(right) <= 0 ? 1 : 0);
-                case Token.GREATER_THAN_OR_EQUAL -> BigDecimal.valueOf(left.compareTo(right) >= 0 ? 1 : 0);
+                case Token.EQUAL_EQUAL -> left.compareTo(right) == 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+                case Token.NOT_EQUAL -> left.compareTo(right) != 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+                case Token.LESS_THAN -> left.compareTo(right) < 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+                case Token.GREATER_THAN -> left.compareTo(right) > 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+                case Token.LESS_THAN_OR_EQUAL -> left.compareTo(right) <= 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+                case Token.GREATER_THAN_OR_EQUAL -> left.compareTo(right) >= 0 ? BigDecimal.ONE : BigDecimal.ZERO;
                 default -> throw new ParseException("Unexpected comparison operator", currentPosition().getLine(), currentPosition().getColumn());
             };
         }
@@ -245,10 +257,14 @@ public class Parser {
                 position++;
             }
             return result;
+        } else if (current.getToken().equals(Token.BOOLEAN_LITERAL)) {
+            position++;
+            return current.getValue().equals("true") ? BigDecimal.ONE : BigDecimal.ZERO;
         } else {
             throw new ParseException("Unexpected token", current.getLine(), current.getColumn());
         }
     }
+
 
     private Token currentPosition() {
         return tokens.get(position);

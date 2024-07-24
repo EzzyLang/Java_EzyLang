@@ -222,6 +222,27 @@ public class Lexer {
             case '}':
                 tokens.add(new Token(Token.RIGHT_BRACE, null, line, column));
                 break;
+            case ';':
+                tokens.add(new Token(Token.SEMICOLON, null, line, column));
+                break;
+            case ',':
+                tokens.add(new Token(Token.COMMA, null, line, column));
+                break;
+            case '.':
+                tokens.add(new Token(Token.DOT, null, line, column));
+                break;
+            case ':':
+                tokens.add(new Token(Token.COLON, null, line, column));
+                break;
+            case '[':
+                tokens.add(new Token(Token.LEFT_BRACKET, null, line, column));
+                break;
+            case ']':
+                tokens.add(new Token(Token.RIGHT_BRACKET, null, line, column));
+                break;
+            case '$':
+                tokens.add(new Token(Token.DOLLAR, null, line, column));
+                break;
         }
         position++;
         column++;

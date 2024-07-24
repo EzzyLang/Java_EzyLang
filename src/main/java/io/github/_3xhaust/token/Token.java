@@ -55,6 +55,7 @@ public class Token {
     // 리터럴 - 값을 가질 수 있음
     public static final String IDENTIFIER = "IDENTIFIER";
     public static final String NUMBER_LITERAL = "NUMBER_LITERAL";
+    public static final String EXPRESSION_LITERAL = "EXPRESSION_LITERAL";
     public static final String CHAR_LITERAL = "CHAR_LITERAL";
     public static final String STRING_LITERAL = "STRING_LITERAL";
     public static final String BOOLEAN_LITERAL = "BOOLEAN_LITERAL";
@@ -92,6 +93,7 @@ public class Token {
     public static final String COMMA = ",";
     public static final String DOT = ".";
     public static final String COLON = ":";
+    public static final String SEMICOLON = ";";
 
     // End of File
     public static final String EOF = "";
