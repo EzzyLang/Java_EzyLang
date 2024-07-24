@@ -1,4 +1,4 @@
-a: number = 1
-b: string = "string"
+/* a: number = 1
 
-print("${a} is a ${b} number")
+print(b) */
+

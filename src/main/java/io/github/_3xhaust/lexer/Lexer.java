@@ -126,6 +126,9 @@ public class Lexer {
                 } else tokens.add(new Token(Token.ELSE, word, line, startColumn));
 
                 break;
+            case "instanceof":
+                tokens.add(new Token(Token.INSTANCEOF, word, line, startColumn));
+                break;
             default:
                 tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
         }
@@ -163,7 +166,11 @@ public class Lexer {
                 } else tokens.add(new Token(Token.ASTERISK, null, line, column));
                 break;
             case '/':
-                if (peek(1) == '=') {
+                if (peek(1) == '/') {
+                    tokenizeSingleLineComment();
+                } else if (peek(1) == '*') {
+                    tokenizeBlockComment();
+                } else if (peek(1) == '=') {
                     tokens.add(new Token(Token.SLASH_EQUAL, null, line, column));
                     position++;
                     column++;
@@ -268,6 +275,31 @@ public class Lexer {
             case '\"' -> '\"';
             default -> escaped;
         };
+    }
+
+    private void tokenizeSingleLineComment() {
+        position += 2; // skip //
+        column += 2;
+        while (position < input.length() && input.charAt(position) != '\n') {
+            position++;
+            column++;
+        }
+    }
+
+    private void tokenizeBlockComment() {
+        position += 2; // skip /*
+        column += 2;
+        while (position < input.length() && !(input.charAt(position) == '*' && peek(1) == '/')) {
+            if (input.charAt(position) == '\n') {
+                line++;
+                column = 1;
+            } else {
+                column++;
+            }
+            position++;
+        }
+        position += 2; // skip */
+        column += 2;
     }
 
     private char peek(int offset) {

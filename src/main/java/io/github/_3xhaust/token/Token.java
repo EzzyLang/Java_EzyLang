@@ -74,6 +74,7 @@ public class Token {
     public static final String BREAK = "BREAK";
     public static final String CONTINUE = "CONTINUE";
     public static final String RETURN = "RETURN";
+    public static final String INSTANCEOF = "INSTANCEOF";
 
     // 정의
     public static final String FUNCTION = "FUNC";

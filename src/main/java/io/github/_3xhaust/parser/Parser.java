@@ -124,8 +124,7 @@ public class Parser {
         consume(Token.PRINT);
         consume(Token.LEFT_PAREN);
 
-        while (currentPosition().getToken().equals(Token.VARIABLE_LITERAL) ||
-                currentPosition().getToken().equals(Token.STRING_LITERAL)) {
+        do {
             if (currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
                 String variableName = consume(Token.VARIABLE_LITERAL).getValue();
                 if (!variables.containsKey(variableName)) {
@@ -137,7 +136,8 @@ public class Parser {
                 Object result = expression();
                 System.out.print(result);
             }
-        }
+        } while (currentPosition().getToken().equals(Token.VARIABLE_LITERAL) ||
+                currentPosition().getToken().equals(Token.STRING_LITERAL));
 
         System.out.println();
 
@@ -152,7 +152,8 @@ public class Parser {
         consume(Token.LEFT_PAREN);
 
         boolean condition;
-        if(currentPosition().getToken().equals(Token.BOOLEAN_LITERAL)) condition = Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
+        if (currentPosition().getToken().equals(Token.BOOLEAN_LITERAL))
+            condition = Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
         else condition = evaluateExpression();
 
         consume(Token.RIGHT_PAREN);
@@ -454,6 +455,8 @@ public class Parser {
                 throw new ParseException("Undefined variable: " + variableName, current.getLine(), current.getColumn());
             }
             return variables.get(variableName);
+        } else if (current.getToken().equals(Token.INSTANCEOF)) {
+            return null; //instanceofExpression();
         } else {
             throw new ParseException("Unexpected token", current.getLine(), current.getColumn());
         }
@@ -464,7 +467,7 @@ public class Parser {
         if (result instanceof Boolean) {
             return (Boolean) result;
         } else {
-            throw new ParseException("Cannot evaluate expression as boolean", currentPosition().getLine(), currentPosition().getColumn());
+            throw new ParseException("Expected a boolean expression", currentPosition().getLine(), currentPosition().getColumn());
         }
     }
 
