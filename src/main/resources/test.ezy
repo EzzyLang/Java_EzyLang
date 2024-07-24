@@ -1,1 +1,5 @@
-print(1+2*2);
+a: string = "test"
+
+if(a == "test") {
+    print("a is test")
+}

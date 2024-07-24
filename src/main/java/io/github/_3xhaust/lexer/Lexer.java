@@ -24,20 +24,14 @@ public class Lexer {
                 tokenizeNumber();
             else if (current == '\"' || current == '\'')
                 tokenizeStringLiteral(current);
-            else if (current == 'p')
-                tokenizePrintKeyword();
-            else if(current == 'i')
-                tokenizeIfKeyword();
-            else if(current == 'e') {
-                if(input.startsWith("else if", position)) {
-                    tokenizeElseIfKeyword();
-                } else tokenizeElseKeyword();
-
-            } else if (current == '\n' || current == '\r') {
+            else if (Character.isLetter(current) || current == '_')
+                tokenizeIdentifierOrKeyword();
+            else if (current == '\n' || current == '\r') {
                 line++;
                 column = 1;
                 position++;
-            } else tokenizeSymbol(current);
+            } else
+                tokenizeSymbol(current);
         }
 
         tokens.add(new Token(Token.EOF, null, line, column));
@@ -54,47 +48,15 @@ public class Lexer {
         tokens.add(new Token(Token.NUMBER_LITERAL, numberLiteral.toString(), line, startColumn));
     }
 
-    private void tokenizePrintKeyword() {
-        if (input.startsWith("print", position)) {
-            tokens.add(new Token(Token.PRINT, null, line, column));
-            position += 5;
-            column += 5;
-        }
-    }
-
-    private void tokenizeIfKeyword() {
-        if (input.startsWith("if", position)) {
-            tokens.add(new Token(Token.IF, null, line, column));
-            position += 2;
-            column += 2;
-        }
-    }
-
-    private void tokenizeElseKeyword() {
-        if (input.startsWith("else", position)) {
-            tokens.add(new Token(Token.ELSE, null, line, column));
-            position += 4;
-            column += 4;
-        }
-    }
-
-    private void tokenizeElseIfKeyword() {
-    if (input.startsWith("else if", position)) {
-        tokens.add(new Token(Token.ELSE_IF, null, line, column));
-        position += 7;
-        column += 7;
-    }
-}
-
     private void tokenizeStringLiteral(char quote) {
         StringBuilder stringLiteral = new StringBuilder();
         int startColumn = column;
-        position++; // 시작 따옴표는 skip
+        position++; // skip starting quote
         column++;
 
         while (position < input.length() && input.charAt(position) != quote) {
             if (input.charAt(position) == '\\') {
-                position++; // \ escape 문자는 skip
+                position++; // skip escape character
                 column++;
                 if (position < input.length()) {
                     stringLiteral.append(getEscapedCharacter(input.charAt(position)));
@@ -106,10 +68,42 @@ public class Lexer {
                 column++;
             }
         }
-        position++; // 마지막 따옴표는 skip
+        position++; // skip ending quote
         column++;
 
         tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
+    }
+
+    private void tokenizeIdentifierOrKeyword() {
+        StringBuilder sb = new StringBuilder();
+        int startColumn = column;
+        while (position < input.length() && (Character.isLetterOrDigit(input.charAt(position)) || input.charAt(position) == '_')) {
+            sb.append(input.charAt(position++));
+            column++;
+        }
+        String word = sb.toString();
+        switch (word) {
+            case "number", "char", "string", "boolean", "null", "void":
+                tokens.add(new Token(word.toUpperCase(), word, line, startColumn)); // Set value to word
+                break;
+            case "true", "false":
+                tokens.add(new Token(Token.BOOLEAN_LITERAL, word, line, startColumn)); // Set value to word
+                break;
+            case "print":
+                tokens.add(new Token(Token.PRINT, word, line, startColumn)); // Set value to word
+                break;
+            case "if":
+                tokens.add(new Token(Token.IF, word, line, startColumn)); // Set value to word
+                break;
+            case "else":
+                tokens.add(new Token(Token.ELSE, word, line, startColumn)); // Set value to word
+                break;
+            case "else if":
+                tokens.add(new Token(Token.ELSE_IF, word, line, startColumn)); // Set value to word
+                break;
+            default:
+                tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn)); // Set value to word
+        }
     }
 
     private void tokenizeSymbol(char current) {
@@ -124,7 +118,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else  tokens.add(new Token(Token.PLUS, null, line, column));
-
                 break;
             case '-':
                 if (peek(1) == '-') {
@@ -136,7 +129,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.MINUS, null, line, column));
-
                 break;
             case '*':
                 if (peek(1) == '=') {
@@ -144,7 +136,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.ASTERISK, null, line, column));
-
                 break;
             case '/':
                 if (peek(1) == '=') {
@@ -152,7 +143,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.SLASH, null, line, column));
-
                 break;
             case '%':
                 if (peek(1) == '=') {
@@ -160,7 +150,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.PERCENT, null, line, column));
-
                 break;
             case '=':
                 if (peek(1) == '=') {
@@ -168,7 +157,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.EQUAL, null, line, column));
-
                 break;
             case '!':
                 if (peek(1) == '=') {
@@ -176,7 +164,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.BANG, null, line, column));
-
                 break;
             case '<':
                 if (peek(1) == '=') {
@@ -184,7 +171,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.LESS_THAN, null, line, column));
-
                 break;
             case '>':
                 if (peek(1) == '=') {
@@ -192,7 +178,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.GREATER_THAN, null, line, column));
-
                 break;
             case '&':
                 if (peek(1) == '&') {
@@ -200,7 +185,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.BITWISE_AND, null, line, column));
-
                 break;
             case '|':
                 if (peek(1) == '|') {
@@ -208,7 +192,6 @@ public class Lexer {
                     position++;
                     column++;
                 } else tokens.add(new Token(Token.BITWISE_OR, null, line, column));
-
                 break;
             case ')':
                 tokens.add(new Token(Token.RIGHT_PAREN, null, line, column));
@@ -249,17 +232,17 @@ public class Lexer {
     }
 
     private char getEscapedCharacter(char escaped) {
-        switch (escaped) {
-            case '\\': return '\\';
-            case 'n': return '\n';
-            case 'r': return '\r';
-            case 't': return '\t';
-            case 'b': return '\b';
-            case 'f': return '\f';
-            case '\'': return '\'';
-            case '\"': return '\"';
-            default: return escaped;
-        }
+        return switch (escaped) {
+            case '\\' -> '\\';
+            case 'n' -> '\n';
+            case 'r' -> '\r';
+            case 't' -> '\t';
+            case 'b' -> '\b';
+            case 'f' -> '\f';
+            case '\'' -> '\'';
+            case '\"' -> '\"';
+            default -> escaped;
+        };
     }
 
     private char peek(int offset) {

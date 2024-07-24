@@ -44,13 +44,13 @@ public class Token {
     public static final String RIGHT_SHIFT = ">>";
 
     // 데이터타입
-    public static final String NUMBER = "number";
-    public static final String CHAR = "char";
-    public static final String STRING = "string";
-    public static final String BOOLEAN = "boolean";
-    public static final String NULL = "null";
-    public static final String VOID = "void";
-    public static final String ARRAY = "[]";
+    public static final String NUMBER = "NUMBER";
+    public static final String CHAR = "CHAR";
+    public static final String STRING = "STRING";
+    public static final String BOOLEAN = "BOOLEAN";
+    public static final String NULL = "NULL";
+    public static final String VOID = "VOID";
+    public static final String ARRAY = "ARRAY";
 
     // 리터럴 - 값을 가질 수 있음
     public static final String IDENTIFIER = "IDENTIFIER";
@@ -64,7 +64,7 @@ public class Token {
     public static final String PRINT = "PRINT";
     public static final String FOR_EACH = "forEach";
 
-    // 제어문,
+    // 제어문
     public static final String IF = "if";
     public static final String ELSE = "else";
     public static final String ELSE_IF = "else if";
@@ -103,15 +103,9 @@ public class Token {
     private final int line;
     private final int column;
 
-    public Token(String token, int line, int column) {
-        this.token = token;
-        this.line = line;
-        this.column = column;
-    }
-
     public Token(String token, String value, int line, int column) {
         this.token = token;
-        this.value = value;
+        this.value = value != null ? value : ""; // Ensure value is not null
         this.line = line;
         this.column = column;
     }
