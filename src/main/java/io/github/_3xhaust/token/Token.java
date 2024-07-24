@@ -97,14 +97,20 @@ public class Token {
 
     private final String token;
     private String value;
+    private final int line;
+    private final int column;
 
-    public Token(String token) {
+    public Token(String token, int line, int column) {
         this.token = token;
+        this.line = line;
+        this.column = column;
     }
 
-    public Token(String token, String value) {
+    public Token(String token, String value, int line, int column) {
         this.token = token;
         this.value = value;
+        this.line = line;
+        this.column = column;
     }
 
     public String getToken() {
@@ -113,5 +119,13 @@ public class Token {
 
     public String getValue() {
         return value;
+    }
+
+    public int getLine() {
+        return line;
+    }
+
+    public int getColumn() {
+        return column;
     }
 }
