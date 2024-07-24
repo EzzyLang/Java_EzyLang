@@ -12,28 +12,30 @@ import java.util.List;
 
 public class Main {
     public static void main(String[] args) throws IOException {
-        if(args.length != 1) {
+        if (args.length != 1) {
             System.out.println("Usage: java -jar ezylang-<version>.jar <source file>");
             System.exit(1);
         }
 
         String fileName = args[0];
+        if (!fileName.endsWith(".ezy")) throw new IOException("Invalid file extension");
 
-        if(!fileName.endsWith(".ezy")) throw new IOException("Invalid file extension");
-
-        BufferedReader reader = new BufferedReader(new FileReader(fileName, StandardCharsets.UTF_8));
-        StringBuilder input = new StringBuilder();
-
-        String readerString;
-        while ((readerString = reader.readLine()) != null) input.append(readerString).append("\n");
-        reader.close();
-
-        Lexer lexer = new Lexer(input.toString());
+        String input = readFile(fileName);
+        Lexer lexer = new Lexer(input);
         List<Token> tokens = lexer.tokenize();
-
-        // for(Token token : tokens) System.out.println(token.getToken());
 
         Parser parser = new Parser(tokens);
         parser.parse();
+    }
+
+    private static String readFile(String fileName) throws IOException {
+        StringBuilder input = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new FileReader(fileName, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                input.append(line).append("\n");
+            }
+        }
+        return input.toString();
     }
 }

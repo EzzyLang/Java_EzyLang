@@ -20,18 +20,17 @@ public class Lexer {
         while (position < input.length()) {
             char current = input.charAt(position);
 
-            if (Character.isDigit(current))
+            if (Character.isDigit(current)) {
                 tokenizeNumber();
-            else if (current == '\"' || current == '\'')
+            } else if (current == '\"' || current == '\'') {
                 tokenizeStringLiteral(current);
-            else if (Character.isLetter(current) || current == '_')
+            } else if (Character.isLetter(current) || current == '_') {
                 tokenizeIdentifierOrKeyword();
-            else if (current == '\n' || current == '\r') {
-                line++;
-                column = 1;
-                position++;
-            } else
+            } else if (current == '\n' || current == '\r') {
+                handleNewline();
+            } else {
                 tokenizeSymbol(current);
+            }
         }
 
         tokens.add(new Token(Token.EOF, null, line, column));
@@ -56,20 +55,9 @@ public class Lexer {
 
         while (position < input.length() && input.charAt(position) != quote) {
             if (input.charAt(position) == '\\') {
-                position++; // skip escape character
-                column++;
-                if (position < input.length()) {
-                    stringLiteral.append(getEscapedCharacter(input.charAt(position)));
-                    column++;
-                }
+                handleEscapeCharacter(stringLiteral);
             } else if (input.charAt(position) == '$' && peek(1) == '{') {
-                if (stringLiteral.length() > 0) {
-                    tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
-                    stringLiteral.setLength(0);
-                }
-                position += 2; // skip ${
-                column += 2;
-                tokenizeVariableLiteral();
+                handleVariableInString(stringLiteral, startColumn);
             } else {
                 stringLiteral.append(input.charAt(position));
                 position++;
@@ -82,6 +70,25 @@ public class Lexer {
         if (stringLiteral.length() > 0) {
             tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
         }
+    }
+
+    private void handleEscapeCharacter(StringBuilder stringLiteral) {
+        position++; // skip escape character
+        column++;
+        if (position < input.length()) {
+            stringLiteral.append(getEscapedCharacter(input.charAt(position)));
+            column++;
+        }
+    }
+
+    private void handleVariableInString(StringBuilder stringLiteral, int startColumn) {
+        if (stringLiteral.length() > 0) {
+            tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
+            stringLiteral.setLength(0);
+        }
+        position += 2; // skip ${
+        column += 2;
+        tokenizeVariableLiteral();
     }
 
     private void tokenizeVariableLiteral() {
@@ -106,161 +113,181 @@ public class Lexer {
         }
         String word = sb.toString();
         switch (word) {
-            case "number", "char", "string", "boolean", "null", "void":
-                tokens.add(new Token(word.toUpperCase(), word, line, startColumn));
-                break;
-            case "true", "false":
-                tokens.add(new Token(Token.BOOLEAN_LITERAL, word, line, startColumn));
-                break;
-            case "print":
-                tokens.add(new Token(Token.PRINT, word, line, startColumn));
-                break;
-            case "if":
-                tokens.add(new Token(Token.IF, word, line, startColumn));
-                break;
-            case "else":
-                if(peek(1) == 'i' && peek(2) == 'f') {
-                    tokens.add(new Token(Token.ELSE_IF, word, line, startColumn));
-                    position += 3;
-                    column += 3;
-                } else tokens.add(new Token(Token.ELSE, word, line, startColumn));
+            case "number", "char", "string", "boolean", "null", "void" -> tokens.add(new Token(word.toUpperCase(), word, line, startColumn));
+            case "true", "false" -> tokens.add(new Token(Token.BOOLEAN_LITERAL, word, line, startColumn));
+            case "print" -> tokens.add(new Token(Token.PRINT, word, line, startColumn));
+            case "if" -> tokens.add(new Token(Token.IF, word, line, startColumn));
+            case "else" -> handleElseToken(word, startColumn);
+            case "instanceof" -> tokens.add(new Token(Token.INSTANCEOF, word, line, startColumn));
+            default -> tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
+        }
+    }
 
-                break;
-            case "instanceof":
-                tokens.add(new Token(Token.INSTANCEOF, word, line, startColumn));
-                break;
-            default:
-                tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
+    private void handleElseToken(String word, int startColumn) {
+        if (peek(1) == 'i' && peek(2) == 'f') {
+            tokens.add(new Token(Token.ELSE_IF, word, line, startColumn));
+            position += 3;
+            column += 3;
+        } else {
+            tokens.add(new Token(Token.ELSE, word, line, startColumn));
         }
     }
 
     private void tokenizeSymbol(char current) {
         switch (current) {
-            case '+':
-                if (peek(1) == '+') {
-                    tokens.add(new Token(Token.PLUS_PLUS, null, line, column));
-                    position++;
-                    column++;
-                } else if (peek(1) == '=') {
-                    tokens.add(new Token(Token.PLUS_EQUAL, null, line, column));
-                    position++;
-                    column++;
-                } else  tokens.add(new Token(Token.PLUS, null, line, column));
-                break;
-            case '-':
-                if (peek(1) == '-') {
-                    tokens.add(new Token(Token.MINUS_MINUS, null, line, column));
-                    position++;
-                    column++;
-                } else if (peek(1) == '=') {
-                    tokens.add(new Token(Token.MINUS_EQUAL, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.MINUS, null, line, column));
-                break;
-            case '*':
-                if (peek(1) == '=') {
-                    tokens.add(new Token(Token.ASTERISK_EQUAL, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.ASTERISK, null, line, column));
-                break;
-            case '/':
-                if (peek(1) == '/') {
-                    tokenizeSingleLineComment();
-                } else if (peek(1) == '*') {
-                    tokenizeBlockComment();
-                } else if (peek(1) == '=') {
-                    tokens.add(new Token(Token.SLASH_EQUAL, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.SLASH, null, line, column));
-                break;
-            case '%':
-                if (peek(1) == '=') {
-                    tokens.add(new Token(Token.PERCENT_EQUAL, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.PERCENT, null, line, column));
-                break;
-            case '=':
-                if (peek(1) == '=') {
-                    tokens.add(new Token(Token.EQUAL_EQUAL, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.EQUAL, null, line, column));
-                break;
-            case '!':
-                if (peek(1) == '=') {
-                    tokens.add(new Token(Token.NOT_EQUAL, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.BANG, null, line, column));
-                break;
-            case '<':
-                if (peek(1) == '=') {
-                    tokens.add(new Token(Token.LESS_THAN_OR_EQUAL, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.LESS_THAN, null, line, column));
-                break;
-            case '>':
-                if (peek(1) == '=') {
-                    tokens.add(new Token(Token.GREATER_THAN_OR_EQUAL, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.GREATER_THAN, null, line, column));
-                break;
-            case '&':
-                if (peek(1) == '&') {
-                    tokens.add(new Token(Token.AND, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.BITWISE_AND, null, line, column));
-                break;
-            case '|':
-                if (peek(1) == '|') {
-                    tokens.add(new Token(Token.OR, null, line, column));
-                    position++;
-                    column++;
-                } else tokens.add(new Token(Token.BITWISE_OR, null, line, column));
-                break;
-            case ')':
-                tokens.add(new Token(Token.RIGHT_PAREN, null, line, column));
-                break;
-            case '(':
-                tokens.add(new Token(Token.LEFT_PAREN, null, line, column));
-                break;
-            case '{':
-                tokens.add(new Token(Token.LEFT_BRACE, null, line, column));
-                break;
-            case '}':
-                tokens.add(new Token(Token.RIGHT_BRACE, null, line, column));
-                break;
-            case ';':
-                tokens.add(new Token(Token.SEMICOLON, null, line, column));
-                break;
-            case ',':
-                tokens.add(new Token(Token.COMMA, null, line, column));
-                break;
-            case '.':
-                tokens.add(new Token(Token.DOT, null, line, column));
-                break;
-            case ':':
-                tokens.add(new Token(Token.COLON, null, line, column));
-                break;
-            case '[':
-                tokens.add(new Token(Token.LEFT_BRACKET, null, line, column));
-                break;
-            case ']':
-                tokens.add(new Token(Token.RIGHT_BRACKET, null, line, column));
-                break;
-            case '$':
-                tokens.add(new Token(Token.DOLLAR, null, line, column));
-                break;
+            case '+' -> handlePlus();
+            case '-' -> handleMinus();
+            case '*' -> handleAsterisk();
+            case '/' -> handleSlash();
+            case '%' -> handlePercent();
+            case '=' -> handleEqual();
+            case '!' -> handleBang();
+            case '<' -> handleLessThan();
+            case '>' -> handleGreaterThan();
+            case '&' -> handleAmpersand();
+            case '|' -> handlePipe();
+            case '(' -> tokens.add(new Token(Token.LEFT_PAREN, null, line, column));
+            case ')' -> tokens.add(new Token(Token.RIGHT_PAREN, null, line, column));
+            case '{' -> tokens.add(new Token(Token.LEFT_BRACE, null, line, column));
+            case '}' -> tokens.add(new Token(Token.RIGHT_BRACE, null, line, column));
+            case ';' -> tokens.add(new Token(Token.SEMICOLON, null, line, column));
+            case ',' -> tokens.add(new Token(Token.COMMA, null, line, column));
+            case '.' -> tokens.add(new Token(Token.DOT, null, line, column));
+            case ':' -> tokens.add(new Token(Token.COLON, null, line, column));
+            case '[' -> tokens.add(new Token(Token.LEFT_BRACKET, null, line, column));
+            case ']' -> tokens.add(new Token(Token.RIGHT_BRACKET, null, line, column));
+            case '$' -> tokens.add(new Token(Token.DOLLAR, null, line, column));
         }
         position++;
         column++;
+    }
+
+    private void handlePlus() {
+        if (peek(1) == '+') {
+            tokens.add(new Token(Token.PLUS_PLUS, null, line, column));
+            position++;
+            column++;
+        } else if (peek(1) == '=') {
+            tokens.add(new Token(Token.PLUS_EQUAL, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.PLUS, null, line, column));
+        }
+    }
+
+    private void handleMinus() {
+        if (peek(1) == '-') {
+            tokens.add(new Token(Token.MINUS_MINUS, null, line, column));
+            position++;
+            column++;
+        } else if (peek(1) == '=') {
+            tokens.add(new Token(Token.MINUS_EQUAL, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.MINUS, null, line, column));
+        }
+    }
+
+    private void handleAsterisk() {
+        if (peek(1) == '=') {
+            tokens.add(new Token(Token.ASTERISK_EQUAL, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.ASTERISK, null, line, column));
+        }
+    }
+
+    private void handleSlash() {
+        if (peek(1) == '/') {
+            tokenizeSingleLineComment();
+        } else if (peek(1) == '*') {
+            tokenizeBlockComment();
+        } else if (peek(1) == '=') {
+            tokens.add(new Token(Token.SLASH_EQUAL, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.SLASH, null, line, column));
+        }
+    }
+
+    private void handlePercent() {
+        if (peek(1) == '=') {
+            tokens.add(new Token(Token.PERCENT_EQUAL, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.PERCENT, null, line, column));
+        }
+    }
+
+    private void handleEqual() {
+        if (peek(1) == '=') {
+            tokens.add(new Token(Token.EQUAL_EQUAL, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.EQUAL, null, line, column));
+        }
+    }
+
+    private void handleBang() {
+        if (peek(1) == '=') {
+            tokens.add(new Token(Token.NOT_EQUAL, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.BANG, null, line, column));
+        }
+    }
+
+    private void handleLessThan() {
+        if (peek(1) == '=') {
+            tokens.add(new Token(Token.LESS_THAN_OR_EQUAL, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.LESS_THAN, null, line, column));
+        }
+    }
+
+    private void handleGreaterThan() {
+        if (peek(1) == '=') {
+            tokens.add(new Token(Token.GREATER_THAN_OR_EQUAL, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.GREATER_THAN, null, line, column));
+        }
+    }
+
+    private void handleAmpersand() {
+        if (peek(1) == '&') {
+            tokens.add(new Token(Token.AND, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.BITWISE_AND, null, line, column));
+        }
+    }
+
+    private void handlePipe() {
+        if (peek(1) == '|') {
+            tokens.add(new Token(Token.OR, null, line, column));
+            position++;
+            column++;
+        } else {
+            tokens.add(new Token(Token.BITWISE_OR, null, line, column));
+        }
+    }
+
+    private void handleNewline() {
+        line++;
+        column = 1;
+        position++;
     }
 
     private char getEscapedCharacter(char escaped) {

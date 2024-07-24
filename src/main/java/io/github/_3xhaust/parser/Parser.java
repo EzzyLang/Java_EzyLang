@@ -10,23 +10,17 @@ import java.util.*;
 public class Parser {
     private final List<Token> tokens;
     private int position = 0;
-
-    // 변수와 그 값을 저장하는 맵. 값은 Object 타입으로 저장하여 다양한 타입을 지원합니다.
     private final Map<String, Object> variables = new HashMap<>();
-
-    // 상수 이름을 저장하는 집합
     private final Set<String> constants = new HashSet<>();
 
     public Parser(List<Token> tokens) {
         this.tokens = tokens;
-        for(Token token : tokens) {
-            System.out.println(token.getToken());
-        }
+        tokens.forEach(token -> System.out.println(token.getToken()));
     }
 
     public void parse() {
         try {
-            while (!Objects.equals(currentPosition().getToken(), Token.EOF)) {
+            while (!currentPosition().getToken().equals(Token.EOF)) {
                 statement();
             }
         } catch (ParseException e) {
@@ -37,22 +31,16 @@ public class Parser {
 
     private void statement() throws ParseException {
         switch (currentPosition().getToken()) {
-            case Token.PRINT:
-                printStatement();
-                break;
-            case Token.IF:
-                ifStatement();
-                break;
-            case Token.IDENTIFIER:
-            case Token.DOLLAR:
+            case Token.PRINT -> printStatement();
+            case Token.IF -> ifStatement();
+            case Token.IDENTIFIER, Token.DOLLAR -> {
                 if (peek(1).getToken().equals(Token.EQUAL)) {
                     variableAssignment();
                 } else {
                     variableDeclaration();
                 }
-                break;
-            default:
-                throw new ParseException("Unexpected token: " + currentPosition().getToken(), currentPosition().getLine(), currentPosition().getColumn());
+            }
+            default -> throw new ParseException("Unexpected token: " + currentPosition().getToken(), currentPosition().getLine(), currentPosition().getColumn());
         }
     }
 
@@ -79,7 +67,7 @@ public class Parser {
 
     private void variableDeclaration() throws ParseException {
         boolean isConstant = false;
-        if (Objects.equals(currentPosition().getToken(), Token.DOLLAR)) {
+        if (currentPosition().getToken().equals(Token.DOLLAR)) {
             isConstant = true;
             consume(Token.DOLLAR);
         }
@@ -91,28 +79,17 @@ public class Parser {
         }
 
         consume(Token.COLON);
-
         String type = currentPosition().getToken();
         position++;
         consume(Token.EQUAL);
 
-        Object value;
-        switch (type) {
-            case Token.NUMBER:
-                value = expressionNumber();
-                break;
-            case Token.STRING:
-                value = expressionString();
-                break;
-            case Token.BOOLEAN:
-                value = expressionBoolean();
-                break;
-            case Token.CHAR:
-                value = expressionChar();
-                break;
-            default:
-                throw new ParseException("Unsupported type: " + type, currentPosition().getLine(), currentPosition().getColumn());
-        }
+        Object value = switch (type) {
+            case Token.NUMBER -> expressionNumber();
+            case Token.STRING -> expressionString();
+            case Token.BOOLEAN -> expressionBoolean();
+            case Token.CHAR -> expressionChar();
+            default -> throw new ParseException("Unsupported type: " + type, currentPosition().getLine(), currentPosition().getColumn());
+        };
 
         if (isConstant) {
             constants.add(variableName);
@@ -130,9 +107,8 @@ public class Parser {
                 if (!variables.containsKey(variableName)) {
                     throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
                 }
-
                 System.out.print(variables.get(variableName));
-            }else {
+            } else {
                 Object result = expression();
                 System.out.print(result);
             }
@@ -140,9 +116,7 @@ public class Parser {
                 currentPosition().getToken().equals(Token.STRING_LITERAL));
 
         System.out.println();
-
         consume(Token.RIGHT_PAREN);
-
     }
 
     private void ifStatement() throws ParseException {
@@ -150,12 +124,7 @@ public class Parser {
 
         consume(Token.IF);
         consume(Token.LEFT_PAREN);
-
-        boolean condition;
-        if (currentPosition().getToken().equals(Token.BOOLEAN_LITERAL))
-            condition = Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
-        else condition = evaluateExpression();
-
+        boolean condition = evaluateCondition();
         consume(Token.RIGHT_PAREN);
 
         if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
@@ -176,13 +145,15 @@ public class Parser {
             }
         }
 
+        handleElseIf(conditionMet);
+        handleElse(conditionMet);
+    }
+
+    private void handleElseIf(boolean conditionMet) throws ParseException {
         while (currentPosition().getToken().equals(Token.ELSE_IF)) {
             consume(Token.ELSE_IF);
             consume(Token.LEFT_PAREN);
-
-            if(currentPosition().getToken().equals(Token.BOOLEAN_LITERAL)) condition = Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
-            else condition = evaluateExpression();
-
+            boolean condition = evaluateCondition();
             consume(Token.RIGHT_PAREN);
 
             if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
@@ -203,7 +174,9 @@ public class Parser {
                 }
             }
         }
+    }
 
+    private void handleElse(boolean conditionMet) throws ParseException {
         if (currentPosition().getToken().equals(Token.ELSE)) {
             consume(Token.ELSE);
 
@@ -222,6 +195,14 @@ public class Parser {
                     skipStatement();
                 }
             }
+        }
+    }
+
+    private boolean evaluateCondition() throws ParseException {
+        if (currentPosition().getToken().equals(Token.BOOLEAN_LITERAL)) {
+            return Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
+        } else {
+            return evaluateExpression();
         }
     }
 
@@ -258,53 +239,41 @@ public class Parser {
     }
 
     private Object convertType(Object value, String targetType) throws ParseException {
-        if (value == null) {
-            return null;
-        }
+        if (value == null) return null;
 
-        switch (targetType) {
-            case Token.NUMBER:
-                if (value instanceof BigDecimal) {
-                    return value;
-                } else if (value instanceof String) {
-                    try {
-                        return new BigDecimal((String) value);
-                    } catch (NumberFormatException e) {
-                        throw new ParseException("Cannot convert String to number", currentPosition().getLine(), currentPosition().getColumn());
-                    }
-                } else if (value instanceof Boolean) {
-                    return ((Boolean) value) ? BigDecimal.ONE : BigDecimal.ZERO;
-                } else if (value instanceof Character) {
-                    return new BigDecimal((int) ((Character) value).charValue());
-                }
-                break;
-            case Token.STRING:
-                return value.toString();
-            case Token.BOOLEAN:
-                if (value instanceof Boolean) {
-                    return value;
-                } else if (value instanceof BigDecimal) {
-                    return ((BigDecimal) value).compareTo(BigDecimal.ZERO) != 0;
-                } else if (value instanceof String) {
-                    return !((String) value).isEmpty();
-                } else if (value instanceof Character) {
-                    return ((Character) value) != '\0';
-                }
-                break;
-            case Token.CHAR:
-                if (value instanceof Character) {
-                    return value;
-                } else if (value instanceof String && ((String) value).length() == 1) {
-                    return ((String) value).charAt(0);
-                } else if (value instanceof BigDecimal) {
-                    int intValue = ((BigDecimal) value).intValue();
-                    if (intValue >= 0 && intValue <= 65535) {
-                        return (char) intValue;
-                    }
-                }
-                break;
+        return switch (targetType) {
+            case Token.NUMBER -> convertToNumber(value);
+            case Token.STRING -> value.toString();
+            case Token.BOOLEAN -> convertToBoolean(value);
+            case Token.CHAR -> convertToChar(value);
+            default -> throw new ParseException("Cannot convert " + value.getClass().getSimpleName() + " to " + targetType, currentPosition().getLine(), currentPosition().getColumn());
+        };
+    }
+
+    private BigDecimal convertToNumber(Object value) throws ParseException {
+        if (value instanceof BigDecimal) return (BigDecimal) value;
+        if (value instanceof String) return new BigDecimal((String) value);
+        if (value instanceof Boolean) return (Boolean) value ? BigDecimal.ONE : BigDecimal.ZERO;
+        if (value instanceof Character) return new BigDecimal((int) (Character) value);
+        throw new ParseException("Cannot convert " + value.getClass().getSimpleName() + " to number", currentPosition().getLine(), currentPosition().getColumn());
+    }
+
+    private Boolean convertToBoolean(Object value) {
+        if (value instanceof Boolean) return (Boolean) value;
+        if (value instanceof BigDecimal) return ((BigDecimal) value).compareTo(BigDecimal.ZERO) != 0;
+        if (value instanceof String) return !((String) value).isEmpty();
+        if (value instanceof Character) return ((Character) value) != '\0';
+        return false;
+    }
+
+    private Character convertToChar(Object value) throws ParseException {
+        if (value instanceof Character) return (Character) value;
+        if (value instanceof String && ((String) value).length() == 1) return ((String) value).charAt(0);
+        if (value instanceof BigDecimal) {
+            int intValue = ((BigDecimal) value).intValue();
+            if (intValue >= 0 && intValue <= 65535) return (char) intValue;
         }
-        throw new ParseException("Cannot convert " + value.getClass().getSimpleName() + " to " + targetType, currentPosition().getLine(), currentPosition().getColumn());
+        throw new ParseException("Cannot convert " + value.getClass().getSimpleName() + " to char", currentPosition().getLine(), currentPosition().getColumn());
     }
 
     private BigDecimal expressionNumber() throws ParseException {
@@ -328,138 +297,148 @@ public class Parser {
     }
 
     private Boolean expressionBoolean() throws ParseException {
-        Token current = consume(Token.BOOLEAN_LITERAL);
-        return Boolean.parseBoolean(current.getValue());
+        return Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
     }
 
     private Character expressionChar() throws ParseException {
-        Token current = consume(Token.CHAR_LITERAL);
-        return current.getValue().charAt(0);
+        return consume(Token.CHAR_LITERAL).getValue().charAt(0);
     }
 
     private BigDecimal logicalOrExpression() throws ParseException {
         BigDecimal left = logicalAndExpression();
-
         while (currentPosition().getToken().equals(Token.OR)) {
             position++;
             BigDecimal right = logicalAndExpression();
             left = (left.compareTo(BigDecimal.ZERO) != 0 || right.compareTo(BigDecimal.ZERO) != 0) ? BigDecimal.ONE : BigDecimal.ZERO;
         }
-
         return left;
     }
 
     private BigDecimal logicalAndExpression() throws ParseException {
         BigDecimal left = equalityExpression();
-
         while (currentPosition().getToken().equals(Token.AND)) {
             position++;
             BigDecimal right = equalityExpression();
             left = (left.compareTo(BigDecimal.ZERO) != 0 && right.compareTo(BigDecimal.ZERO) != 0) ? BigDecimal.ONE : BigDecimal.ZERO;
         }
-
         return left;
     }
 
     private BigDecimal equalityExpression() throws ParseException {
         BigDecimal left = arithmeticExpression();
-
-        if (currentPosition().getToken().equals(Token.EQUAL_EQUAL) ||
-                currentPosition().getToken().equals(Token.NOT_EQUAL) ||
-                currentPosition().getToken().equals(Token.LESS_THAN) ||
-                currentPosition().getToken().equals(Token.GREATER_THAN) ||
-                currentPosition().getToken().equals(Token.LESS_THAN_OR_EQUAL) ||
-                currentPosition().getToken().equals(Token.GREATER_THAN_OR_EQUAL)) {
-
+        if (isComparisonOperator(currentPosition().getToken())) {
             String operator = currentPosition().getToken();
             position++;
             BigDecimal right = arithmeticExpression();
-
-            return switch (operator) {
-                case Token.EQUAL_EQUAL -> Objects.equals(left, right) ? BigDecimal.ONE : BigDecimal.ZERO;
-                case Token.NOT_EQUAL -> !Objects.equals(left, right) ? BigDecimal.ONE : BigDecimal.ZERO;
-                case Token.LESS_THAN -> compareObjects(left, right) < 0 ? BigDecimal.ONE : BigDecimal.ZERO;
-                case Token.GREATER_THAN -> compareObjects(left, right) > 0 ? BigDecimal.ONE : BigDecimal.ZERO;
-                case Token.LESS_THAN_OR_EQUAL -> compareObjects(left, right) <= 0 ? BigDecimal.ONE : BigDecimal.ZERO;
-                case Token.GREATER_THAN_OR_EQUAL -> compareObjects(left, right) >= 0 ? BigDecimal.ONE : BigDecimal.ZERO;
-                default -> throw new ParseException("Unexpected comparison operator", currentPosition().getLine(), currentPosition().getColumn());
-            };
+            return evaluateComparison(left, right, operator);
         }
-
         return left;
     }
 
-    private int compareObjects(Object left, Object right) throws ParseException {
-        if (left instanceof Comparable && right instanceof Comparable) {
-            try {
-                return ((Comparable) left).compareTo(right);
-            } catch (ClassCastException e) {
-                throw new ParseException("Cannot compare " + left.getClass().getSimpleName() + " with " + right.getClass().getSimpleName(), currentPosition().getLine(), currentPosition().getColumn());
-            }
-        }
-        throw new ParseException("Cannot compare " + left.getClass().getSimpleName() + " with " + right.getClass().getSimpleName(), currentPosition().getLine(), currentPosition().getColumn());
+    private boolean isComparisonOperator(String token) {
+        return token.equals(Token.EQUAL_EQUAL) || token.equals(Token.NOT_EQUAL) ||
+                token.equals(Token.LESS_THAN) || token.equals(Token.GREATER_THAN) ||
+                token.equals(Token.LESS_THAN_OR_EQUAL) || token.equals(Token.GREATER_THAN_OR_EQUAL);
+    }
+
+    private BigDecimal evaluateComparison(BigDecimal left, BigDecimal right, String operator) {
+        return switch (operator) {
+            case Token.EQUAL_EQUAL -> left.compareTo(right) == 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+            case Token.NOT_EQUAL -> left.compareTo(right) != 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+            case Token.LESS_THAN -> left.compareTo(right) < 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+            case Token.GREATER_THAN -> left.compareTo(right) > 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+            case Token.LESS_THAN_OR_EQUAL -> left.compareTo(right) <= 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+            case Token.GREATER_THAN_OR_EQUAL -> left.compareTo(right) >= 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+            default -> BigDecimal.ZERO;
+        };
     }
 
     private BigDecimal arithmeticExpression() throws ParseException {
         BigDecimal left = (BigDecimal) term();
-
-        while (Objects.equals(currentPosition().getToken(), Token.PLUS) ||
-                Objects.equals(currentPosition().getToken(), Token.MINUS)) {
+        while (currentPosition().getToken().equals(Token.PLUS) || currentPosition().getToken().equals(Token.MINUS)) {
             Token operator = currentPosition();
             position++;
             BigDecimal right = (BigDecimal) term();
-
-            switch (operator.getToken()) {
-                case Token.PLUS:
-                    left = left.add(right);
-                    break;
-                case Token.MINUS:
-                    left = left.subtract(right);
-                    break;
-            }
+            left = evaluateArithmetic(left, right, operator.getToken());
         }
-
         return left;
+    }
+
+    private BigDecimal evaluateArithmetic(BigDecimal left, BigDecimal right, String operator) {
+        return switch (operator) {
+            case Token.PLUS -> left.add(right);
+            case Token.MINUS -> left.subtract(right);
+            default -> left;
+        };
+    }
+
+    private Object term() throws ParseException {
+        Object left = factor();
+        while (isMultiplicativeOperator(currentPosition().getToken())) {
+            String operator = currentPosition().getToken();
+            position++;
+            Object right = factor();
+            left = evaluateMultiplicative(left, right, operator);
+        }
+        return left;
+    }
+
+    private boolean isMultiplicativeOperator(String token) {
+        return token.equals(Token.ASTERISK) || token.equals(Token.SLASH) || token.equals(Token.PERCENT);
+    }
+
+    private Object evaluateMultiplicative(Object left, Object right, String operator) throws ParseException {
+        if (left instanceof BigDecimal && right instanceof BigDecimal) {
+            return switch (operator) {
+                case Token.ASTERISK -> ((BigDecimal) left).multiply((BigDecimal) right);
+                case Token.SLASH -> {
+                    if (((BigDecimal) right).compareTo(BigDecimal.ZERO) == 0) {
+                        throw new ParseException("Division by zero", currentPosition().getLine(), currentPosition().getColumn());
+                    }
+                    yield ((BigDecimal) left).divide((BigDecimal) right, MathContext.DECIMAL128);
+                }
+                case Token.PERCENT -> ((BigDecimal) left).remainder((BigDecimal) right);
+                default -> left;
+            };
+        } else {
+            throw new ParseException("Invalid operation between types", currentPosition().getLine(), currentPosition().getColumn());
+        }
     }
 
     private Object factor() throws ParseException {
         Token current = currentPosition();
-        if (current.getToken().equals(Token.NUMBER_LITERAL)) {
-            position++;
-            return new BigDecimal(current.getValue());
-        }  else if (current.getToken().equals(Token.VARIABLE_LITERAL)) {
-            position++;
-            if (!variables.containsKey(current.getValue())) {
-                throw new ParseException("Undefined variable: " + current.getValue(), current.getLine(), current.getColumn());
+        return switch (current.getToken()) {
+            case Token.NUMBER_LITERAL -> new BigDecimal(consume(Token.NUMBER_LITERAL).getValue());
+            case Token.VARIABLE_LITERAL -> getVariableValue(consume(Token.VARIABLE_LITERAL).getValue());
+            case Token.STRING_LITERAL -> consume(Token.STRING_LITERAL).getValue();
+            case Token.LEFT_PAREN -> {
+                position++;
+                Object result = expression();
+                if (currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
+                    position++;
+                }
+                yield result;
             }
-            return variables.get(current.getValue());
-        }  else if (current.getToken().equals(Token.STRING_LITERAL)) {
+            case Token.IDENTIFIER, Token.DOLLAR -> getVariableValue(consumeVariableName(current));
+            default -> throw new ParseException("Unexpected token", current.getLine(), current.getColumn());
+        };
+    }
+
+    private String consumeVariableName(Token current) throws ParseException {
+        if (current.getToken().equals(Token.DOLLAR)) {
+            position++;
+            return consume(Token.IDENTIFIER).getValue();
+        } else {
             position++;
             return current.getValue();
-        } else if (current.getToken().equals(Token.LEFT_PAREN)) {
-            position++;
-            Object result = expression();
-            if (currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
-                position++;
-            }
-            return result;
-        } else if (current.getToken().equals(Token.IDENTIFIER) || current.getToken().equals(Token.DOLLAR)) {
-            String variableName = current.getValue();
-            if (current.getToken().equals(Token.DOLLAR)) {
-                position++;
-                variableName = consume(Token.IDENTIFIER).getValue();
-            } else {
-                position++;
-            }
-            if (!variables.containsKey(variableName)) {
-                throw new ParseException("Undefined variable: " + variableName, current.getLine(), current.getColumn());
-            }
-            return variables.get(variableName);
-        } else if (current.getToken().equals(Token.INSTANCEOF)) {
-            return null; //instanceofExpression();
-        } else {
-            throw new ParseException("Unexpected token", current.getLine(), current.getColumn());
         }
+    }
+
+    private Object getVariableValue(String variableName) throws ParseException {
+        if (!variables.containsKey(variableName)) {
+            throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+        }
+        return variables.get(variableName);
     }
 
     private boolean evaluateExpression() throws ParseException {
@@ -471,99 +450,56 @@ public class Parser {
         }
     }
 
+    private boolean evaluateInstanceOf(Object left, String type) throws ParseException {
+        return switch (type) {
+            case Token.NUMBER -> left instanceof BigDecimal;
+            case Token.STRING -> left instanceof String;
+            case Token.BOOLEAN -> left instanceof Boolean;
+            case Token.CHAR -> left instanceof Character;
+            default -> throw new ParseException("Unsupported type: " + type, currentPosition().getLine(), currentPosition().getColumn());
+        };
+    }
+
     private Object expression() throws ParseException {
         Object left = term();
-
-        while (Objects.equals(currentPosition().getToken(), Token.PLUS) ||
-                Objects.equals(currentPosition().getToken(), Token.MINUS) ||
-                Objects.equals(currentPosition().getToken(), Token.EQUAL_EQUAL) ||
-                Objects.equals(currentPosition().getToken(), Token.NOT_EQUAL) ||
-                Objects.equals(currentPosition().getToken(), Token.GREATER_THAN) ||
-                Objects.equals(currentPosition().getToken(), Token.LESS_THAN) ||
-                Objects.equals(currentPosition().getToken(), Token.GREATER_THAN_OR_EQUAL) ||
-                Objects.equals(currentPosition().getToken(), Token.LESS_THAN_OR_EQUAL)) {
+        while (isExpressionOperator(currentPosition().getToken()) || currentPosition().getToken().equals(Token.INSTANCEOF)) {
             Token operator = currentPosition();
             position++;
-            Object right = term();
-
-            if (left instanceof BigDecimal && right instanceof BigDecimal) {
-                switch (operator.getToken()) {
-                    case Token.PLUS:
-                        left = ((BigDecimal) left).add((BigDecimal) right);
-                        break;
-                    case Token.MINUS:
-                        left = ((BigDecimal) left).subtract((BigDecimal) right);
-                        break;
-                    case Token.EQUAL_EQUAL:
-                        left = ((BigDecimal) left).compareTo((BigDecimal) right) == 0;
-                        break;
-                    case Token.NOT_EQUAL:
-                        left = ((BigDecimal) left).compareTo((BigDecimal) right) != 0;
-                        break;
-                    case Token.GREATER_THAN:
-                        left = ((BigDecimal) left).compareTo((BigDecimal) right) > 0;
-                        break;
-                    case Token.LESS_THAN:
-                        left = ((BigDecimal) left).compareTo((BigDecimal) right) < 0;
-                        break;
-                    case Token.GREATER_THAN_OR_EQUAL:
-                        left = ((BigDecimal) left).compareTo((BigDecimal) right) >= 0;
-                        break;
-                    case Token.LESS_THAN_OR_EQUAL:
-                        left = ((BigDecimal) left).compareTo((BigDecimal) right) <= 0;
-                        break;
-                }
-            } else if (left instanceof String && right instanceof String) {
-                switch (operator.getToken()) {
-                    case Token.PLUS:
-                        left = (String) left + (String) right;
-                        break;
-                    case Token.EQUAL_EQUAL:
-                        left = left.equals(right);
-                        break;
-                    case Token.NOT_EQUAL:
-                        left = !left.equals(right);
-                        break;
-                }
+            if (operator.getToken().equals(Token.INSTANCEOF)) {
+                String type = consume(currentPosition().getToken()).getToken();
+                left = evaluateInstanceOf(left, type);
             } else {
-                throw new ParseException("Invalid operation between types", currentPosition().getLine(), currentPosition().getColumn());
+                Object right = term();
+                left = evaluateExpressionOperation(left, right, operator.getToken());
             }
         }
-
         return left;
     }
 
-    private Object term() throws ParseException {
-        Object left = factor();
+    private boolean isExpressionOperator(String token) {
+        return token.equals(Token.PLUS) || token.equals(Token.MINUS) ||
+                token.equals(Token.EQUAL_EQUAL) || token.equals(Token.NOT_EQUAL) ||
+                token.equals(Token.GREATER_THAN) || token.equals(Token.LESS_THAN) ||
+                token.equals(Token.GREATER_THAN_OR_EQUAL) || token.equals(Token.LESS_THAN_OR_EQUAL);
+    }
 
-        while (currentPosition().getToken().equals(Token.ASTERISK) ||
-                currentPosition().getToken().equals(Token.SLASH) ||
-                currentPosition().getToken().equals(Token.PERCENT)) {
-            String operator = currentPosition().getToken();
-            position++;
-            Object right = factor();
-
-            if (left instanceof BigDecimal && right instanceof BigDecimal) {
-                switch (operator) {
-                    case Token.ASTERISK:
-                        left = ((BigDecimal) left).multiply((BigDecimal) right);
-                        break;
-                    case Token.SLASH:
-                        if (((BigDecimal) right).compareTo(BigDecimal.ZERO) == 0) {
-                            throw new ParseException("Division by zero", currentPosition().getLine(), currentPosition().getColumn());
-                        }
-                        left = ((BigDecimal) left).divide((BigDecimal) right, MathContext.DECIMAL128);
-                        break;
-                    case Token.PERCENT:
-                        left = ((BigDecimal) left).remainder((BigDecimal) right);
-                        break;
-                }
-            } else {
-                throw new ParseException("Invalid operation between types", currentPosition().getLine(), currentPosition().getColumn());
-            }
+    private Object evaluateExpressionOperation(Object left, Object right, String operator) throws ParseException {
+        if (left instanceof BigDecimal && right instanceof BigDecimal) {
+            return evaluateArithmetic((BigDecimal) left, (BigDecimal) right, operator);
+        } else if (left instanceof String && right instanceof String) {
+            return evaluateStringOperation((String) left, (String) right, operator);
+        } else {
+            throw new ParseException("Invalid operation between types", currentPosition().getLine(), currentPosition().getColumn());
         }
+    }
 
-        return left;
+    private Object evaluateStringOperation(String left, String right, String operator) {
+        return switch (operator) {
+            case Token.PLUS -> left + right;
+            case Token.EQUAL_EQUAL -> left.equals(right);
+            case Token.NOT_EQUAL -> !left.equals(right);
+            default -> left;
+        };
     }
 
     private Token currentPosition() {

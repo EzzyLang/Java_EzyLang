@@ -1,4 +1,7 @@
-/* a: number = 1
+a: string = "Hello"
 
-print(b) */
-
+if(a instanceof string) {
+    print("a is a string")
+} else {
+    print("a is not a string")
+}
