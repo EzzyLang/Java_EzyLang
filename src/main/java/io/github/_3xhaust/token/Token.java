@@ -59,6 +59,7 @@ public class Token {
     public static final String CHAR_LITERAL = "CHAR_LITERAL";
     public static final String STRING_LITERAL = "STRING_LITERAL";
     public static final String BOOLEAN_LITERAL = "BOOLEAN_LITERAL";
+    public static final String VARIABLE_LITERAL = "VARIABLE_LITERAL";
 
     // 함수
     public static final String PRINT = "PRINT";

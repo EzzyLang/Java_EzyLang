@@ -1,7 +1,4 @@
-a: string = "test"
+a: number = 1
+b: string = "string"
 
-print(a)
-
-a = "1"
-
-print(a)
+print("${a} is a ${b} number")

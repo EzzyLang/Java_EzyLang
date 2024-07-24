@@ -62,6 +62,14 @@ public class Lexer {
                     stringLiteral.append(getEscapedCharacter(input.charAt(position)));
                     column++;
                 }
+            } else if (input.charAt(position) == '$' && peek(1) == '{') {
+                if (stringLiteral.length() > 0) {
+                    tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
+                    stringLiteral.setLength(0);
+                }
+                position += 2; // skip ${
+                column += 2;
+                tokenizeVariableLiteral();
             } else {
                 stringLiteral.append(input.charAt(position));
                 position++;
@@ -71,7 +79,22 @@ public class Lexer {
         position++; // skip ending quote
         column++;
 
-        tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
+        if (stringLiteral.length() > 0) {
+            tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
+        }
+    }
+
+    private void tokenizeVariableLiteral() {
+        int startColumn = column;
+        StringBuilder variableName = new StringBuilder();
+        while (position < input.length() && input.charAt(position) != '}') {
+            variableName.append(input.charAt(position));
+            position++;
+            column++;
+        }
+        position++; // skip ending }
+        column++;
+        tokens.add(new Token(Token.VARIABLE_LITERAL, variableName.toString(), line, startColumn));
     }
 
     private void tokenizeIdentifierOrKeyword() {
@@ -98,8 +121,8 @@ public class Lexer {
             case "else":
                 if(peek(1) == 'i' && peek(2) == 'f') {
                     tokens.add(new Token(Token.ELSE_IF, word, line, startColumn));
-                    position += 4;
-                    column += 4;
+                    position += 3;
+                    column += 3;
                 } else tokens.add(new Token(Token.ELSE, word, line, startColumn));
 
                 break;

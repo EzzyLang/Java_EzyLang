@@ -36,21 +36,23 @@ public class Parser {
     }
 
     private void statement() throws ParseException {
-        if (Objects.equals(currentPosition().getToken(), Token.PRINT)) {
-            printStatement();
-        } else if (Objects.equals(currentPosition().getToken(), Token.IF)) {
-            ifStatement();
-        } else if (Objects.equals(currentPosition().getToken(), Token.IDENTIFIER) ||
-                Objects.equals(currentPosition().getToken(), Token.DOLLAR)) {
-            if (peek(1).getToken().equals(Token.EQUAL)) {
-                variableAssignment();
-            } else {
-                variableDeclaration();
-            }
-        }
-
-        if (!isAtEnd() && currentPosition().getToken().equals(Token.SEMICOLON)) {
-            throw new ParseException("Unexpected ';'", currentPosition().getLine(), currentPosition().getColumn());
+        switch (currentPosition().getToken()) {
+            case Token.PRINT:
+                printStatement();
+                break;
+            case Token.IF:
+                ifStatement();
+                break;
+            case Token.IDENTIFIER:
+            case Token.DOLLAR:
+                if (peek(1).getToken().equals(Token.EQUAL)) {
+                    variableAssignment();
+                } else {
+                    variableDeclaration();
+                }
+                break;
+            default:
+                throw new ParseException("Unexpected token: " + currentPosition().getToken(), currentPosition().getLine(), currentPosition().getColumn());
         }
     }
 
@@ -60,20 +62,20 @@ public class Parser {
     }
 
     private void variableAssignment() throws ParseException {
-    String variableName = consume(Token.IDENTIFIER).getValue();
-    consume(Token.EQUAL);
+        String variableName = consume(Token.IDENTIFIER).getValue();
+        consume(Token.EQUAL);
 
-    if (!variables.containsKey(variableName)) {
-        throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+        if (!variables.containsKey(variableName)) {
+            throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+        }
+
+        if (constants.contains(variableName)) {
+            throw new ParseException("Cannot reassign constant variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+        }
+
+        Object value = expression();
+        variables.put(variableName, value);
     }
-
-    if (constants.contains(variableName)) {
-        throw new ParseException("Cannot reassign constant variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
-    }
-
-    Object value = expression();
-    variables.put(variableName, value);
-}
 
     private void variableDeclaration() throws ParseException {
         boolean isConstant = false;
@@ -122,10 +124,25 @@ public class Parser {
         consume(Token.PRINT);
         consume(Token.LEFT_PAREN);
 
-        Object result = expression();
-        System.out.println(result);
+        while (currentPosition().getToken().equals(Token.VARIABLE_LITERAL) ||
+                currentPosition().getToken().equals(Token.STRING_LITERAL)) {
+            if (currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
+                String variableName = consume(Token.VARIABLE_LITERAL).getValue();
+                if (!variables.containsKey(variableName)) {
+                    throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+                }
+
+                System.out.print(variables.get(variableName));
+            }else {
+                Object result = expression();
+                System.out.print(result);
+            }
+        }
+
+        System.out.println();
 
         consume(Token.RIGHT_PAREN);
+
     }
 
     private void ifStatement() throws ParseException {
@@ -133,48 +150,86 @@ public class Parser {
 
         consume(Token.IF);
         consume(Token.LEFT_PAREN);
-        boolean condition = evaluateExpression();
+
+        boolean condition;
+        if(currentPosition().getToken().equals(Token.BOOLEAN_LITERAL)) condition = Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
+        else condition = evaluateExpression();
+
         consume(Token.RIGHT_PAREN);
-        consume(Token.LEFT_BRACE);
 
-        if (condition) {
-            block();
-            conditionMet = true;
-        } else {
-            skipBlock();
-        }
-
-        consume(Token.RIGHT_BRACE);
-
-
-        while (currentPosition().getToken().equals(Token.ELSE_IF)) {
-            consume(Token.ELSE_IF);
-            consume(Token.LEFT_PAREN);
-            condition = evaluateExpression();
-            consume(Token.RIGHT_PAREN);
+        if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
             consume(Token.LEFT_BRACE);
-
-            if (!conditionMet && condition) {
+            if (condition) {
                 block();
                 conditionMet = true;
             } else {
                 skipBlock();
             }
-
             consume(Token.RIGHT_BRACE);
+        } else {
+            if (condition) {
+                statement();
+                conditionMet = true;
+            } else {
+                skipStatement();
+            }
+        }
+
+        while (currentPosition().getToken().equals(Token.ELSE_IF)) {
+            consume(Token.ELSE_IF);
+            consume(Token.LEFT_PAREN);
+
+            if(currentPosition().getToken().equals(Token.BOOLEAN_LITERAL)) condition = Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
+            else condition = evaluateExpression();
+
+            consume(Token.RIGHT_PAREN);
+
+            if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
+                consume(Token.LEFT_BRACE);
+                if (!conditionMet && condition) {
+                    block();
+                    conditionMet = true;
+                } else {
+                    skipBlock();
+                }
+                consume(Token.RIGHT_BRACE);
+            } else {
+                if (!conditionMet && condition) {
+                    statement();
+                    conditionMet = true;
+                } else {
+                    skipStatement();
+                }
+            }
         }
 
         if (currentPosition().getToken().equals(Token.ELSE)) {
             consume(Token.ELSE);
-            consume(Token.LEFT_BRACE);
 
-            if (!conditionMet) {
-                block();
+            if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
+                consume(Token.LEFT_BRACE);
+                if (!conditionMet) {
+                    block();
+                } else {
+                    skipBlock();
+                }
+                consume(Token.RIGHT_BRACE);
             } else {
-                skipBlock();
+                if (!conditionMet) {
+                    statement();
+                } else {
+                    skipStatement();
+                }
             }
+        }
+    }
 
-            consume(Token.RIGHT_BRACE);
+    private void skipStatement() {
+        while (!isAtEnd() && !currentPosition().getToken().equals(Token.SEMICOLON)) {
+            position++;
+        }
+        if (!isAtEnd()) {
+            position++;
         }
     }
 
@@ -256,8 +311,19 @@ public class Parser {
     }
 
     private String expressionString() throws ParseException {
-        Token current = consume(Token.STRING_LITERAL);
-        return current.getValue();
+        StringBuilder result = new StringBuilder();
+        while (currentPosition().getToken().equals(Token.STRING_LITERAL) || currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
+            if (currentPosition().getToken().equals(Token.STRING_LITERAL)) {
+                result.append(consume(Token.STRING_LITERAL).getValue());
+            } else if (currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
+                String variableName = consume(Token.VARIABLE_LITERAL).getValue();
+                if (!variables.containsKey(variableName)) {
+                    throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+                }
+                result.append(variables.get(variableName).toString());
+            }
+        }
+        return result.toString();
     }
 
     private Boolean expressionBoolean() throws ParseException {
@@ -360,7 +426,13 @@ public class Parser {
         if (current.getToken().equals(Token.NUMBER_LITERAL)) {
             position++;
             return new BigDecimal(current.getValue());
-        } else if (current.getToken().equals(Token.STRING_LITERAL)) {
+        }  else if (current.getToken().equals(Token.VARIABLE_LITERAL)) {
+            position++;
+            if (!variables.containsKey(current.getValue())) {
+                throw new ParseException("Undefined variable: " + current.getValue(), current.getLine(), current.getColumn());
+            }
+            return variables.get(current.getValue());
+        }  else if (current.getToken().equals(Token.STRING_LITERAL)) {
             position++;
             return current.getValue();
         } else if (current.getToken().equals(Token.LEFT_PAREN)) {
@@ -491,8 +563,10 @@ public class Parser {
         return left;
     }
 
-
     private Token currentPosition() {
+        if (position >= tokens.size()) {
+            return new Token(Token.EOF, null, tokens.get(tokens.size() - 1).getLine(), tokens.get(tokens.size() - 1).getColumn());
+        }
         return tokens.get(position);
     }
 
