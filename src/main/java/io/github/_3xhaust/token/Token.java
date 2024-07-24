@@ -65,21 +65,21 @@ public class Token {
     public static final String FOR_EACH = "forEach";
 
     // 제어문
-    public static final String IF = "if";
-    public static final String ELSE = "else";
-    public static final String ELSE_IF = "else if";
-    public static final String WHILE = "while";
-    public static final String FOR = "for";
-    public static final String BREAK = "break";
-    public static final String CONTINUE = "continue";
-    public static final String RETURN = "return";
+    public static final String IF = "IF";
+    public static final String ELSE = "ELSE";
+    public static final String ELSE_IF = "ELSE IF";
+    public static final String WHILE = "WHILE";
+    public static final String FOR = "FOR";
+    public static final String BREAK = "BREAK";
+    public static final String CONTINUE = "CONTINUE";
+    public static final String RETURN = "RETURN";
 
     // 정의
-    public static final String FUNCTION = "func";
+    public static final String FUNCTION = "FUNC";
 
     // 루프
     public static final String RANGE = "..";
-    public static final String IN = "in";
+    public static final String IN = "IN";
 
     // 기호
     public static final String LEFT_PAREN = "(";
@@ -125,4 +125,5 @@ public class Token {
     public int getColumn() {
         return column;
     }
+
 }

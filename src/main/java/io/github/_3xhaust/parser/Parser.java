@@ -42,13 +42,38 @@ public class Parser {
             ifStatement();
         } else if (Objects.equals(currentPosition().getToken(), Token.IDENTIFIER) ||
                 Objects.equals(currentPosition().getToken(), Token.DOLLAR)) {
-            variableDeclaration();
+            if (peek(1).getToken().equals(Token.EQUAL)) {
+                variableAssignment();
+            } else {
+                variableDeclaration();
+            }
         }
 
         if (!isAtEnd() && currentPosition().getToken().equals(Token.SEMICOLON)) {
             throw new ParseException("Unexpected ';'", currentPosition().getLine(), currentPosition().getColumn());
         }
     }
+
+    private Token peek(int offset) {
+        if (position + offset >= tokens.size()) return new Token(Token.EOF, null, currentPosition().getLine(), currentPosition().getColumn());
+        return tokens.get(position + offset);
+    }
+
+    private void variableAssignment() throws ParseException {
+    String variableName = consume(Token.IDENTIFIER).getValue();
+    consume(Token.EQUAL);
+
+    if (!variables.containsKey(variableName)) {
+        throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+    }
+
+    if (constants.contains(variableName)) {
+        throw new ParseException("Cannot reassign constant variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+    }
+
+    Object value = expression();
+    variables.put(variableName, value);
+}
 
     private void variableDeclaration() throws ParseException {
         boolean isConstant = false;
@@ -120,6 +145,7 @@ public class Parser {
         }
 
         consume(Token.RIGHT_BRACE);
+
 
         while (currentPosition().getToken().equals(Token.ELSE_IF)) {
             consume(Token.ELSE_IF);
@@ -376,7 +402,11 @@ public class Parser {
         while (Objects.equals(currentPosition().getToken(), Token.PLUS) ||
                 Objects.equals(currentPosition().getToken(), Token.MINUS) ||
                 Objects.equals(currentPosition().getToken(), Token.EQUAL_EQUAL) ||
-                Objects.equals(currentPosition().getToken(), Token.NOT_EQUAL)) {
+                Objects.equals(currentPosition().getToken(), Token.NOT_EQUAL) ||
+                Objects.equals(currentPosition().getToken(), Token.GREATER_THAN) ||
+                Objects.equals(currentPosition().getToken(), Token.LESS_THAN) ||
+                Objects.equals(currentPosition().getToken(), Token.GREATER_THAN_OR_EQUAL) ||
+                Objects.equals(currentPosition().getToken(), Token.LESS_THAN_OR_EQUAL)) {
             Token operator = currentPosition();
             position++;
             Object right = term();
@@ -394,6 +424,18 @@ public class Parser {
                         break;
                     case Token.NOT_EQUAL:
                         left = ((BigDecimal) left).compareTo((BigDecimal) right) != 0;
+                        break;
+                    case Token.GREATER_THAN:
+                        left = ((BigDecimal) left).compareTo((BigDecimal) right) > 0;
+                        break;
+                    case Token.LESS_THAN:
+                        left = ((BigDecimal) left).compareTo((BigDecimal) right) < 0;
+                        break;
+                    case Token.GREATER_THAN_OR_EQUAL:
+                        left = ((BigDecimal) left).compareTo((BigDecimal) right) >= 0;
+                        break;
+                    case Token.LESS_THAN_OR_EQUAL:
+                        left = ((BigDecimal) left).compareTo((BigDecimal) right) <= 0;
                         break;
                 }
             } else if (left instanceof String && right instanceof String) {

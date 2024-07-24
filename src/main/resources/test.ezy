@@ -1,5 +1,7 @@
 a: string = "test"
 
-if(a == "test") {
-    print("a is test")
-}
+print(a)
+
+a = "1"
+
+print(a)

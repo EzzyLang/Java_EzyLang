@@ -84,25 +84,27 @@ public class Lexer {
         String word = sb.toString();
         switch (word) {
             case "number", "char", "string", "boolean", "null", "void":
-                tokens.add(new Token(word.toUpperCase(), word, line, startColumn)); // Set value to word
+                tokens.add(new Token(word.toUpperCase(), word, line, startColumn));
                 break;
             case "true", "false":
-                tokens.add(new Token(Token.BOOLEAN_LITERAL, word, line, startColumn)); // Set value to word
+                tokens.add(new Token(Token.BOOLEAN_LITERAL, word, line, startColumn));
                 break;
             case "print":
-                tokens.add(new Token(Token.PRINT, word, line, startColumn)); // Set value to word
+                tokens.add(new Token(Token.PRINT, word, line, startColumn));
                 break;
             case "if":
-                tokens.add(new Token(Token.IF, word, line, startColumn)); // Set value to word
+                tokens.add(new Token(Token.IF, word, line, startColumn));
                 break;
             case "else":
-                tokens.add(new Token(Token.ELSE, word, line, startColumn)); // Set value to word
-                break;
-            case "else if":
-                tokens.add(new Token(Token.ELSE_IF, word, line, startColumn)); // Set value to word
+                if(peek(1) == 'i' && peek(2) == 'f') {
+                    tokens.add(new Token(Token.ELSE_IF, word, line, startColumn));
+                    position += 4;
+                    column += 4;
+                } else tokens.add(new Token(Token.ELSE, word, line, startColumn));
+
                 break;
             default:
-                tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn)); // Set value to word
+                tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
         }
     }
 
