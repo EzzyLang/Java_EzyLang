@@ -13,7 +13,7 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) throws IOException {
         if(args.length != 1) {
-            System.out.println("Usage: java .jar <source file>");
+            System.out.println("Usage: java -jar ezylang-<version>.jar <source file>");
             System.exit(1);
         }
 
@@ -31,7 +31,7 @@ public class Main {
         Lexer lexer = new Lexer(input.toString());
         List<Token> tokens = lexer.tokenize();
 
-        //for(Token token : tokens) System.out.println(token);
+        // for(Token token : tokens) System.out.println(token.getToken());
 
         Parser parser = new Parser(tokens);
         parser.parse();
