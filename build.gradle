@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'io.github._3xhaust'
-version = '1.0-SNAPSHOT'
+version = 'beta 1.1.0'
 
 repositories {
     mavenCentral()
@@ -16,4 +16,10 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'io.github._3xhaust.Main'
+    }
 }

@@ -95,7 +95,7 @@ public class Parser {
 
     private BigDecimal primary() {
         Token token = currentPosition();
-        position++; // Move past the current token
+        position++;
         return new BigDecimal(token.getValue());
     }
 
