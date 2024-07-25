@@ -1,8 +1,14 @@
+/*a : number = 10
+println(a * 2)
+println((a*2))*/
+
+print("as" + "as")
+
 arr: number[] = [5, 2, 3, 4, 1]
-/*
+
 print("정렬 전: ")
 for (beforeSort: number in arr) {
-  print(beforeSort + " ")
+  print("${beforeSort} ")
 }
 
 n: number = arr.length
@@ -19,9 +25,6 @@ for (i: number in 0 .. n - 2) {
 
 print("\n정렬 후: ")
 for (afterSort: number in arr) {
-  print(afterSort + " ")
-}*/
-
-for(i: number in arr) {
-    print(i)
+  print("${afterSort} ")
 }
+

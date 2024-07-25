@@ -38,8 +38,7 @@ public class Parser {
 
     private void statement() throws ParseException {
         switch (currentPosition().getToken()) {
-            case Token.PRINT -> printStatement(false);
-            case Token.PRINTLN -> printStatement(true);
+            case Token.PRINT, Token.PRINTLN -> printStatement();
             case Token.FOR -> forStatement();
             case Token.IF -> ifStatement();
             case Token.IDENTIFIER, Token.DOLLAR -> {
@@ -81,12 +80,15 @@ public class Parser {
         if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.LEFT_BRACKET)) {
             String arrayVariable = consume(Token.IDENTIFIER).getValue();
             consume(Token.LEFT_BRACKET);
+
             int index = ((BigDecimal) expression()).intValue();
+
             consume(Token.RIGHT_BRACKET);
             value = getVariableValueAtIndex(arrayVariable, index);
         } else if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.DOT_LENGTH)) {
             String arrayVariable = consume(Token.IDENTIFIER).getValue();
             consume(Token.DOT_LENGTH);
+
             value = getArrayLength(arrayVariable);
         } else {
             value = getTypedValue(type);
@@ -120,7 +122,7 @@ public class Parser {
             constants.add(variableName);
         }
         variables.put(variableName, value);
-        declaredVariables.add(variableName); // 변수 선언 후 추가
+        declaredVariables.add(variableName);
     }
 
     private void ensureVariableNotDeclared(String variableName) throws ParseException {
@@ -330,7 +332,6 @@ public class Parser {
 
         int forLoopStartPosition = position;
 
-        // for 루프 조건 수정
         if (step.compareTo(BigDecimal.ZERO) > 0) {
             for (BigDecimal i = start; i.compareTo(end) <= 0; i = i.add(step)) {
                 position = forLoopStartPosition;
@@ -402,40 +403,37 @@ public class Parser {
         }
     }
 
-    private void printStatement(boolean ln) throws ParseException {
-        if (ln) consume(Token.PRINTLN);
-        else consume(Token.PRINT);
+    private void printStatement() throws ParseException {
+        boolean ln = currentPosition().getToken().equals(Token.PRINTLN);
+        consume(ln ? Token.PRINTLN : Token.PRINT);
 
         consume(Token.LEFT_PAREN);
-
         StringBuilder result = new StringBuilder();
+
+        while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
+            result.append(evaluateStringExpression());
+        }
+
+        System.out.print(ln ? result + "\n" : result);
+
+        consume(Token.RIGHT_PAREN);
+    }
+
+    private String evaluateStringExpression() throws ParseException {
+        StringBuilder result = new StringBuilder();
+
         while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
             if (currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
-                String variableName = consume(Token.VARIABLE_LITERAL).getValue();
-
-                if (!variables.containsKey(variableName)) {
-                    throw new ParseException(fileName, "Undefined variable: " + variableName,
-                            currentPosition().getLine(),
-                            currentPosition().getColumn(),
-                            getCurrentLine());
-                }
-
-                result.append(variables.get(variableName));
+                result.append(getVariableValue(consume(Token.VARIABLE_LITERAL).getValue()));
             } else if (currentPosition().getToken().equals(Token.STRING_LITERAL)) {
                 result.append(consume(Token.STRING_LITERAL).getValue());
-            } else if (currentPosition().getToken().equals(Token.PLUS)) {
-                consume(Token.PLUS);
             } else if (currentPosition().getToken().equals(Token.IDENTIFIER)) {
                 result.append(getVariableValue(consume(Token.IDENTIFIER).getValue()));
             } else {
                 result.append(expression());
             }
         }
-
-        if (ln) System.out.println(result);
-        else System.out.print(result);
-
-        consume(Token.RIGHT_PAREN);
+        return result.toString();
     }
 
     private void ifStatement() throws ParseException {
@@ -549,19 +547,7 @@ public class Parser {
     }
 
     private String expressionString() throws ParseException {
-        StringBuilder result = new StringBuilder();
-        while (currentPosition().getToken().equals(Token.STRING_LITERAL) ||
-                currentPosition().getToken().equals(Token.VARIABLE_LITERAL) ||
-                currentPosition().getToken().equals(Token.PLUS)) {
-            if (currentPosition().getToken().equals(Token.STRING_LITERAL)) {
-                result.append(consume(Token.STRING_LITERAL).getValue());
-            } else if (currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
-                result.append(getVariableValue(consume(Token.VARIABLE_LITERAL).getValue()));
-            } else if (currentPosition().getToken().equals(Token.PLUS)) {
-                consume(Token.PLUS);
-            }
-        }
-        return result.toString();
+        return consume(Token.STRING_LITERAL).getValue();
     }
 
     private Boolean expressionBoolean() throws ParseException {
@@ -602,11 +588,11 @@ public class Parser {
     }
 
     private BigDecimal equalityExpression() throws ParseException {
-        BigDecimal left = arithmeticExpression();
+        BigDecimal left = (BigDecimal) arithmeticExpression();
         if (isComparisonOperator(currentPosition().getToken())) {
             String operator = currentPosition().getToken();
             position++;
-            BigDecimal right = arithmeticExpression();
+            BigDecimal right = (BigDecimal) arithmeticExpression();
             return evaluateComparison(left, right, operator);
         }
         return left;
@@ -633,65 +619,32 @@ public class Parser {
         };
     }
 
-    private BigDecimal arithmeticExpression() throws ParseException {
-        BigDecimal left = (BigDecimal) term();
+    private Object arithmeticExpression() throws ParseException {
+        Object left = term(); // 먼저 곱셈/나눗셈을 처리
+
         while (currentPosition().getToken().equals(Token.PLUS) ||
                 currentPosition().getToken().equals(Token.MINUS)) {
-            Token operator = currentPosition();
-            position++;
-            BigDecimal right = (BigDecimal) term();
-            left = evaluateArithmetic(left, right, operator.getToken());
+            String operator = currentPosition().getToken();
+            consume(operator);
+            Object right = term();
+            left = applyOperator(left, operator, right); // 덧셈/뺄셈 결과를 누적
         }
-        return left;
-    }
 
-    private BigDecimal evaluateArithmetic(BigDecimal left, BigDecimal right, String operator) {
-        return switch (operator) {
-            case Token.PLUS -> left.add(right);
-            case Token.MINUS -> left.subtract(right);
-            default -> left;
-        };
+        return left; // 최종 결과 반환
     }
 
     private Object term() throws ParseException {
         Object left = factor();
-        while (isMultiplicativeOperator(currentPosition().getToken())) {
+
+        while (currentPosition().getToken().equals(Token.ASTERISK) ||
+                currentPosition().getToken().equals(Token.SLASH) ||
+                currentPosition().getToken().equals(Token.PERCENT)) {
             String operator = currentPosition().getToken();
-            position++;
+            consume(operator);
             Object right = factor();
-            left = evaluateMultiplicative(left, right, operator);
+            left = applyOperator(left, operator, right);
         }
         return left;
-    }
-
-    private boolean isMultiplicativeOperator(String token) {
-        return token.equals(Token.ASTERISK) ||
-                token.equals(Token.SLASH) ||
-                token.equals(Token.PERCENT);
-    }
-
-    private Object evaluateMultiplicative(Object left, Object right, String operator) throws ParseException {
-        if (left instanceof BigDecimal && right instanceof BigDecimal) {
-            return switch (operator) {
-                case Token.ASTERISK -> ((BigDecimal) left).multiply((BigDecimal) right);
-                case Token.SLASH -> {
-                    if (((BigDecimal) right).compareTo(BigDecimal.ZERO) == 0) {
-                        throw new ParseException(fileName, "Division by zero",
-                                currentPosition().getLine(),
-                                currentPosition().getColumn(),
-                                getCurrentLine());
-                    }
-                    yield ((BigDecimal) left).divide((BigDecimal) right, MathContext.DECIMAL128);
-                }
-                case Token.PERCENT -> ((BigDecimal) left).remainder((BigDecimal) right);
-                default -> left;
-            };
-        } else {
-            throw new ParseException(fileName, "Invalid operation between types",
-                    currentPosition().getLine(),
-                    currentPosition().getColumn(),
-                    getCurrentLine());
-        }
     }
 
     private Object factor() throws ParseException {
@@ -702,19 +655,15 @@ public class Parser {
             case Token.VARIABLE_LITERAL -> getVariableValue(consume(Token.VARIABLE_LITERAL).getValue());
             case Token.STRING_LITERAL -> consume(Token.STRING_LITERAL).getValue();
             case Token.LEFT_PAREN -> {
-                position++;
+                consume(Token.LEFT_PAREN);
                 Object result = expression();
-                if (currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
-                    position++;
-                }
+                consume(Token.RIGHT_PAREN);
                 yield result;
             }
-            case Token.IDENTIFIER -> {
-                String identifier = consume(Token.IDENTIFIER).getValue();
-                if (currentPosition().getToken().equals(Token.DOT_LENGTH)) {
-                    consume(Token.DOT_LENGTH);
-                    yield getArrayLength(identifier);
-                } else if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
+            case Token.IDENTIFIER, Token.DOLLAR -> {
+                String identifier = consumeVariableName(current);
+
+                if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
                     consume(Token.LEFT_BRACKET);
                     int index = ((BigDecimal) expression()).intValue();
                     consume(Token.RIGHT_BRACKET);
@@ -723,10 +672,35 @@ public class Parser {
                     yield getVariableValue(identifier);
                 }
             }
-            case Token.DOLLAR -> getVariableValue(consumeVariableName(current));
             default -> throw unexpectedTokenException("Unexpected token in factor");
         };
     }
+
+    private Object applyOperator(Object left, String operator, Object right) throws ParseException {
+        if (left instanceof BigDecimal && right instanceof BigDecimal) {
+            return switch (operator) {
+                case Token.PLUS -> ((BigDecimal) left).add((BigDecimal) right);
+                case Token.MINUS -> ((BigDecimal) left).subtract((BigDecimal) right);
+                case Token.ASTERISK -> ((BigDecimal) left).multiply((BigDecimal) right);
+                case Token.PERCENT -> ((BigDecimal) left).remainder((BigDecimal) right);
+                case Token.SLASH -> {
+                    if (((BigDecimal) right).compareTo(BigDecimal.ZERO) == 0) {
+                        throw new ParseException(fileName, "Division by zero",
+                                currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+                    }
+                    yield ((BigDecimal) left).divide((BigDecimal) right, MathContext.DECIMAL128);
+                }
+                default -> throw new ParseException(fileName, "Unsupported operator: " + operator,
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            };
+        } else if (operator.equals(Token.PLUS) && (left instanceof String || right instanceof String)) {
+            return left.toString() + right.toString();
+        } else {
+            throw new ParseException(fileName, "Invalid operation between types",
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+    }
+
 
     private BigDecimal getArrayLength(String arrayName) throws ParseException {
         Object array = getVariableValue(arrayName);
@@ -804,19 +778,19 @@ public class Parser {
     }
 
     private Object expression() throws ParseException {
-        Object left = term();
+        Object left = arithmeticExpression();
 
         while (isExpressionOperator(currentPosition().getToken()) ||
                 currentPosition().getToken().equals(Token.IS)) {
 
             Token operator = currentPosition();
             consume(operator.getToken());
+
             if (operator.getToken().equals(Token.IS)) {
                 String type = consume(currentPosition().getToken()).getToken();
                 left = evaluateIs(left, type);
             } else {
-                Object right = term();
-
+                Object right = arithmeticExpression();
                 left = evaluateExpressionOperation(left, right, operator.getToken());
             }
         }
@@ -839,12 +813,24 @@ public class Parser {
             return evaluateArithmeticOperation((BigDecimal) left, (BigDecimal) right, operator);
         } else if (left instanceof String && right instanceof String) {
             return evaluateStringOperation((String) left, (String) right, operator);
+        } else if (left instanceof Boolean && right instanceof Boolean) { // Boolean 타입 처리 추가
+            return evaluateBooleanOperation((Boolean) left, (Boolean) right, operator);
         } else {
             throw new ParseException(fileName, "Invalid operation between types",
                     currentPosition().getLine(),
                     currentPosition().getColumn(),
                     getCurrentLine());
         }
+    }
+
+    private Object evaluateBooleanOperation(Boolean left, Boolean right, String operator) { // Boolean 연산 함수 추가
+        return switch (operator) {
+            case Token.EQUAL_EQUAL -> left == right;
+            case Token.NOT_EQUAL -> left != right;
+            case Token.AND -> left && right; // AND 연산 추가
+            case Token.OR -> left || right;  // OR 연산 추가
+            default -> throw new IllegalArgumentException("Unsupported operator for boolean: " + operator);
+        };
     }
 
     private Object evaluateArithmeticOperation(BigDecimal left, BigDecimal right, String operator) {
