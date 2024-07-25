@@ -58,58 +58,65 @@ public class Parser {
     }
 
     private void variableDeclaration() throws ParseException {
-        boolean isConstant = false;
-        if (currentPosition().getToken().equals(Token.DOLLAR)) {
-            isConstant = true;
-            consume(Token.DOLLAR);
-        }
+        boolean isConstant = currentPosition().getToken().equals(Token.DOLLAR);
+        if (isConstant) consume(Token.DOLLAR);
 
         String variableName = consume(Token.IDENTIFIER).getValue();
+        ensureVariableNotDeclared(variableName);
 
+        consume(Token.COLON);
+        String type = consume(currentPosition().getToken()).getToken();
+
+        consume(Token.EQUAL);
+        Object value = getTypedValue(type);
+
+        if (isConstant) constants.add(variableName);
+
+        variables.put(variableName, value);
+        declaredVariables.add(variableName);
+    }
+
+    private void ensureVariableNotDeclared(String variableName) throws ParseException {
         if (declaredVariables.contains(variableName)) {
             throw new ParseException(fileName, "Variable '" + variableName + "' already declared",
                     currentPosition().getLine(),
                     currentPosition().getColumn(),
                     getCurrentLine());
         }
+    }
 
-        consume(Token.COLON);
-        String type = currentPosition().getToken();
-        position++;
+    private Object getTypedValue(String type) throws ParseException {
+        String currentTokenType = currentPosition().getToken();
 
-        Object value;
-
-        if (currentPosition().getToken().equals(Token.EQUAL)) {
-            consume(Token.EQUAL);
-            try {
-                value = switch (type) {
-                    case Token.NUMBER -> expressionNumber();
-                    case Token.STRING -> expressionString();
-                    case Token.BOOLEAN -> expressionBoolean();
-                    case Token.CHAR -> expressionChar();
-                    case Token.NULL -> expressionNull();
-                    default -> throw new ParseException(fileName, "Unsupported type: " + type.toLowerCase(),
-                            currentPosition().getLine(),
-                            currentPosition().getColumn(),
-                            getCurrentLine());
-                };
-            } catch (ParseException e) {
-                throw new ParseException(fileName, "Type mismatch: Cannot assign " + currentPosition().getToken().toLowerCase() + " to " + type.toLowerCase(),
+        if (currentTokenType.equals(getTokenLiteralByType(type))) {
+            switch (type) {
+                case Token.NUMBER: return expressionNumber();
+                case Token.STRING: return expressionString();
+                case Token.BOOLEAN: return expressionBoolean();
+                case Token.CHAR: return expressionChar();
+                case Token.NULL: return expressionNull();
+                default: throw new ParseException(fileName, "Unsupported type: " + type.toLowerCase(),
                         currentPosition().getLine(),
                         currentPosition().getColumn(),
                         getCurrentLine());
             }
-        }else throw new ParseException(fileName, "Variable declaration must include initialization",
-                currentPosition().getLine(),
-                currentPosition().getColumn(),
-                getCurrentLine());
-
-        if (isConstant) {
-            constants.add(variableName);
+        } else {
+            throw new ParseException(fileName, "Type mismatch: Cannot assign " + currentTokenType.toLowerCase() + " to " + type.toLowerCase(),
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
+    }
 
-        variables.put(variableName, value);
-        declaredVariables.add(variableName);
+    private String getTokenLiteralByType(String type) {
+        return switch (type) {
+            case Token.NUMBER -> Token.NUMBER_LITERAL;
+            case Token.STRING -> Token.STRING_LITERAL;
+            case Token.BOOLEAN -> Token.BOOLEAN_LITERAL;
+            case Token.CHAR -> Token.CHAR_LITERAL;
+            case Token.NULL -> Token.NULL;
+            default -> "";
+        };
     }
 
     private void variableAssignment() throws ParseException {

@@ -1,3 +1,5 @@
+a: number = "asdf"
+
 /*d: number = 1
 
 print("${d}"+ "b" + "c")
