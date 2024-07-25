@@ -1,6 +1,7 @@
 d: number = 1
 
 print("${d}"+ "b" + "c")
+if(asdf)
 
 /*
 println(1+1*2)

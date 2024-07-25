@@ -9,14 +9,18 @@ import java.util.*;
 
 public class Parser {
     private final List<Token> tokens;
+    private final String fileName;
+    private final String[] lines;
     private int position = 0;
     private final Map<String, Object> variables = new HashMap<>();
     private final Set<String> constants = new HashSet<>();
     private final Set<String> declaredVariables = new HashSet<>();
 
-    public Parser(List<Token> tokens) {
+    public Parser(List<Token> tokens, String fileName, String input) {
         this.tokens = tokens;
-        tokens.forEach(token -> System.out.println(token.getToken()));
+        this.fileName = fileName;
+        this.lines = input.split("\n");
+        //tokens.forEach(token -> System.out.println(token.getToken()));
     }
 
     public void parse() {
@@ -41,7 +45,10 @@ public class Parser {
                     variableDeclaration();
                 }
             }
-            default -> throw new ParseException("Syntax error: Unexpected token '" + currentPosition().getValue() + "'", currentPosition().getLine(), currentPosition().getColumn());
+            default -> throw new ParseException(fileName, "Syntax error: Unexpected token '" + currentPosition().getValue() + "'",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
     }
 
@@ -60,7 +67,10 @@ public class Parser {
         String variableName = consume(Token.IDENTIFIER).getValue();
 
         if (declaredVariables.contains(variableName)) {
-            throw new ParseException("Variable '" + variableName + "' already declared", currentPosition().getLine(), currentPosition().getColumn());
+            throw new ParseException(fileName, "Variable '" + variableName + "' already declared",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
 
         consume(Token.COLON);
@@ -78,12 +88,21 @@ public class Parser {
                     case Token.BOOLEAN -> expressionBoolean();
                     case Token.CHAR -> expressionChar();
                     case Token.NULL -> expressionNull();
-                    default -> throw new ParseException("Unsupported type: " + type.toLowerCase(), currentPosition().getLine(), currentPosition().getColumn());
+                    default -> throw new ParseException(fileName, "Unsupported type: " + type.toLowerCase(),
+                            currentPosition().getLine(),
+                            currentPosition().getColumn(),
+                            getCurrentLine());
                 };
             } catch (ParseException e) {
-                throw new ParseException("Type mismatch: Cannot assign " + currentPosition().getToken().toLowerCase() + " to " + type.toLowerCase(), currentPosition().getLine(), currentPosition().getColumn());
+                throw new ParseException(fileName, "Type mismatch: Cannot assign " + currentPosition().getToken().toLowerCase() + " to " + type.toLowerCase(),
+                        currentPosition().getLine(),
+                        currentPosition().getColumn(),
+                        getCurrentLine());
             }
-        }else throw new ParseException("Variable declaration must include initialization", currentPosition().getLine(), currentPosition().getColumn());
+        }else throw new ParseException(fileName, "Variable declaration must include initialization",
+                currentPosition().getLine(),
+                currentPosition().getColumn(),
+                getCurrentLine());
 
         if (isConstant) {
             constants.add(variableName);
@@ -98,11 +117,17 @@ public class Parser {
         consume(Token.EQUAL);
 
         if (!variables.containsKey(variableName)) {
-            throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+            throw new ParseException(fileName, "Undefined variable: " + variableName,
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
 
         if (constants.contains(variableName)) {
-            throw new ParseException("Cannot reassign constant variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+            throw new ParseException(fileName, "Cannot reassign constant variable: " + variableName,
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
 
         Object value = expression();
@@ -121,7 +146,10 @@ public class Parser {
                 String variableName = consume(Token.VARIABLE_LITERAL).getValue();
 
                 if (!variables.containsKey(variableName)) {
-                    throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+                    throw new ParseException(fileName, "Undefined variable: " + variableName,
+                            currentPosition().getLine(),
+                            currentPosition().getColumn(),
+                            getCurrentLine());
                 }
 
                 result.append(variables.get(variableName));
@@ -256,7 +284,7 @@ public class Parser {
     }
 
     private boolean isAtEnd() {
-        return position >= tokens.size();
+        return position >= tokens.size() || currentPosition().getToken().equals(Token.EOF);
     }
 
     private Object convertType(Object value, String targetType) throws ParseException {
@@ -268,7 +296,11 @@ public class Parser {
             case Token.BOOLEAN -> convertToBoolean(value);
             case Token.CHAR -> convertToChar(value);
             case Token.NULL -> null;
-            default -> throw new ParseException("Cannot convert " + value.getClass().getSimpleName() + " to " + targetType, currentPosition().getLine(), currentPosition().getColumn());
+            default -> throw new ParseException(fileName,
+                    "Cannot convert " + value.getClass().getSimpleName() + " to " + targetType,
+                            currentPosition().getLine(),
+                            currentPosition().getColumn(),
+                            getCurrentLine());
         };
     }
 
@@ -277,7 +309,10 @@ public class Parser {
         if (value instanceof String) return new BigDecimal((String) value);
         if (value instanceof Boolean) return (Boolean) value ? BigDecimal.ONE : BigDecimal.ZERO;
         if (value instanceof Character) return new BigDecimal((int) (Character) value);
-        throw new ParseException("Cannot convert " + value.getClass().getSimpleName() + " to number", currentPosition().getLine(), currentPosition().getColumn());
+        throw new ParseException(fileName, "Cannot convert " + value.getClass().getSimpleName() + " to number",
+                currentPosition().getLine(),
+                currentPosition().getColumn(),
+                getCurrentLine());
     }
 
     private Boolean convertToBoolean(Object value) {
@@ -295,7 +330,10 @@ public class Parser {
             int intValue = ((BigDecimal) value).intValue();
             if (intValue >= 0 && intValue <= 65535) return (char) intValue;
         }
-        throw new ParseException("Cannot convert " + value.getClass().getSimpleName() + " to char", currentPosition().getLine(), currentPosition().getColumn());
+        throw new ParseException(fileName, "Cannot convert " + value.getClass().getSimpleName() + " to char",
+                currentPosition().getLine(),
+                currentPosition().getColumn(),
+                getCurrentLine());
     }
 
     private BigDecimal expressionNumber() throws ParseException {
@@ -310,7 +348,10 @@ public class Parser {
             } else if (currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
                 String variableName = consume(Token.VARIABLE_LITERAL).getValue();
                 if (!variables.containsKey(variableName)) {
-                    throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+                    throw new ParseException(fileName, "Undefined variable: " + variableName,
+                            currentPosition().getLine(),
+                            currentPosition().getColumn(),
+                            getCurrentLine());
                 }
                 result.append(variables.get(variableName).toString());
             } else if (currentPosition().getToken().equals(Token.PLUS)) {
@@ -330,7 +371,10 @@ public class Parser {
 
     private Object expressionNull() throws ParseException{
         if(!currentPosition().getToken().equals(Token.NULL)) {
-            throw new ParseException("Type mismatch: Expected null", currentPosition().getLine(), currentPosition().getColumn());
+            throw new ParseException(fileName, "Type mismatch: Expected null",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
 
         consume(Token.NULL);
@@ -426,7 +470,10 @@ public class Parser {
                 case Token.ASTERISK -> ((BigDecimal) left).multiply((BigDecimal) right);
                 case Token.SLASH -> {
                     if (((BigDecimal) right).compareTo(BigDecimal.ZERO) == 0) {
-                        throw new ParseException("Division by zero", currentPosition().getLine(), currentPosition().getColumn());
+                        throw new ParseException(fileName, "Division by zero",
+                                currentPosition().getLine(),
+                                currentPosition().getColumn(),
+                                getCurrentLine());
                     }
                     yield ((BigDecimal) left).divide((BigDecimal) right, MathContext.DECIMAL128);
                 }
@@ -434,7 +481,10 @@ public class Parser {
                 default -> left;
             };
         } else {
-            throw new ParseException("Invalid operation between types", currentPosition().getLine(), currentPosition().getColumn());
+            throw new ParseException(fileName, "Invalid operation between types",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
     }
 
@@ -454,7 +504,10 @@ public class Parser {
                 yield result;
             }
             case Token.IDENTIFIER, Token.DOLLAR -> getVariableValue(consumeVariableName(current));
-            default -> throw new ParseException("Unexpected token", current.getLine(), current.getColumn());
+            default -> throw new ParseException(fileName, "Unexpected token",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         };
     }
 
@@ -470,7 +523,10 @@ public class Parser {
 
     private Object getVariableValue(String variableName) throws ParseException {
         if (!variables.containsKey(variableName)) {
-            throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
+            throw new ParseException(fileName, "Undefined variable: " + variableName,
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
         return variables.get(variableName);
     }
@@ -480,7 +536,10 @@ public class Parser {
         if (result instanceof Boolean) {
             return (Boolean) result;
         } else {
-            throw new ParseException("Expected a boolean expression", currentPosition().getLine(), currentPosition().getColumn());
+            throw new ParseException(fileName, "Expected a boolean expression",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
     }
 
@@ -491,7 +550,10 @@ public class Parser {
             case Token.BOOLEAN -> left instanceof Boolean;
             case Token.CHAR -> left instanceof Character;
             case Token.NULL -> left == null;
-            default -> throw new ParseException("Unsupported type: " + type.toLowerCase(), currentPosition().getLine(), currentPosition().getColumn());
+            default -> throw new ParseException(fileName, "Unsupported type: " + type.toLowerCase(),
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         };
     }
 
@@ -527,7 +589,10 @@ public class Parser {
         } else if (left instanceof String && right instanceof String) {
             return evaluateStringOperation((String) left, (String) right, operator);
         } else {
-            throw new ParseException("Invalid operation between types", currentPosition().getLine(), currentPosition().getColumn());
+            throw new ParseException(fileName, "Invalid operation between types",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
     }
 
@@ -561,7 +626,14 @@ public class Parser {
             position++;
             return current;
         } else {
-            throw new ParseException("Expected '" + expectedToken + "', found '" + current.getToken() + "'", current.getLine(), current.getColumn());
+            throw new ParseException(fileName, "Expected '" + expectedToken + "', found '" + current.getToken() + "'",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
         }
+    }
+
+    private String getCurrentLine() {
+        return lines[currentPosition().getLine() - 1];
     }
 }

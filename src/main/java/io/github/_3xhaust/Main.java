@@ -1,5 +1,6 @@
 package io.github._3xhaust;
 
+import io.github._3xhaust.exception.ParseException;
 import io.github._3xhaust.parser.Parser;
 import io.github._3xhaust.lexer.Lexer;
 import io.github._3xhaust.token.Token;
@@ -11,21 +12,26 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         if (args.length != 1) {
             System.out.println("Usage: java -jar ezylang-<version>.jar <source file>");
             System.exit(1);
         }
 
         String fileName = args[0];
-        if (!fileName.endsWith(".ezy")) throw new IOException("Invalid file extension");
+        try {
+            if (!fileName.endsWith(".ezy")) throw new IOException("Invalid file extension");
 
-        String input = readFile(fileName);
-        Lexer lexer = new Lexer(input);
-        List<Token> tokens = lexer.tokenize();
+            String input = readFile(fileName);
+            Lexer lexer = new Lexer(input);
+            List<Token> tokens = lexer.tokenize();
 
-        Parser parser = new Parser(tokens);
-        parser.parse();
+            Parser parser = new Parser(tokens, fileName, input);
+            parser.parse();
+        } catch (IOException e) {
+            System.err.println("Error: " + e.getMessage());
+            System.exit(1);
+        }
     }
 
     private static String readFile(String fileName) throws IOException {
