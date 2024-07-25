@@ -1,6 +1,8 @@
 a: number[] = [1, 2, 3, 4, 5]
 
-println(a[0])
+for(i: number in a) {
+    println(i)
+}
 
 /*d: number = 1
 

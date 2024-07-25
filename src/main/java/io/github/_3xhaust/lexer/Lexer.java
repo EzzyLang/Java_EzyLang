@@ -129,10 +129,15 @@ public class Lexer {
             case "if" -> tokens.add(new Token(Token.IF, word, line, startColumn));
             case "else" -> handleElseToken(word, startColumn);
             case "is" -> tokens.add(new Token(Token.IS, word, line, startColumn));
+            case "for" -> tokens.add(new Token(Token.FOR, word, line, startColumn));
             case "func" -> tokens.add(new Token(Token.FUNCTION, word, line, startColumn));
+            case "in" -> tokens.add(new Token(Token.IN, word, line, startColumn));
+            case "array" -> tokens.add(new Token(Token.ARRAY, word, line, startColumn));
+            case ".." -> tokens.add(new Token(Token.RANGE, word, line, startColumn));
             default -> tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
         }
     }
+
 
     private void handleElseToken(String word, int startColumn) {
         if (peek(1) == 'i' && peek(2) == 'f') {

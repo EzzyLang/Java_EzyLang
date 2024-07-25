@@ -52,6 +52,7 @@ public class Token {
     public static final String CHAR_ARRAY = "char array";
     public static final String STRING_ARRAY = "string array";
     public static final String BOOLEAN_ARRAY = "boolean array";
+    public static final String ARRAY = "array";
     public static final String NULL = "null";
     public static final String VOID = "void";
 
@@ -85,8 +86,9 @@ public class Token {
     public static final String FUNCTION = "function";
 
     // 루프
-    public static final String RANGE = "..";
     public static final String IN = "in";
+    public static final String RANGE = "range";
+    public static final String STEP = "step";
 
     // 기호
     public static final String LEFT_PAREN = "(";

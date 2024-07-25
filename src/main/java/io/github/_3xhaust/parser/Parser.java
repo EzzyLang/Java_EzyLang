@@ -37,6 +37,7 @@ public class Parser {
         switch (currentPosition().getToken()) {
             case Token.PRINT -> printStatement(false);
             case Token.PRINTLN -> printStatement(true);
+            case Token.FOR -> forStatement();
             case Token.IF -> ifStatement();
             case Token.IDENTIFIER, Token.DOLLAR -> {
                 if (peek(1).getToken().equals(Token.EQUAL)) {
@@ -159,6 +160,98 @@ public class Parser {
 
         Object value = expression();
         variables.put(variableName, value);
+    }
+
+    private void forStatement() throws ParseException {
+        consume(Token.FOR);
+        consume(Token.LEFT_PAREN);
+
+        String variable = consume(Token.IDENTIFIER).getValue();
+
+        consume(Token.COLON);
+
+        String type = consume(currentPosition().getToken()).getToken();
+
+        consume(Token.IN);
+
+        if (currentPosition().getToken().equals(Token.IDENTIFIER)) { // 배열 순회
+            String arrayVariable = consume(Token.IDENTIFIER).getValue();
+            consume(Token.RIGHT_PAREN);
+
+            if (!variables.containsKey(arrayVariable)) {
+                throw new ParseException(fileName, "Undefined variable: " + arrayVariable,
+                        currentPosition().getLine(),
+                        currentPosition().getColumn(),
+                        getCurrentLine());
+            }
+
+            Object arrayObject = variables.get(arrayVariable);
+            if (!(arrayObject instanceof List)) {
+                throw new ParseException(fileName, "Variable '" + arrayVariable + "' is not an array",
+                        currentPosition().getLine(),
+                        currentPosition().getColumn(),
+                        getCurrentLine());
+            }
+
+            List<?> array = (List<?>) arrayObject;
+            for (Object element : array) {
+                variables.put(variable, element);
+                if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
+                    consume(Token.LEFT_BRACE);
+                    block();
+                    consume(Token.RIGHT_BRACE);
+                } else {
+                    statement();
+                }
+            }
+
+        } else if (currentPosition().getToken().equals(Token.NUMBER_LITERAL)) { // 범위 순회
+            BigDecimal start = expressionNumber();
+            consume(Token.DOT_DOT);
+            BigDecimal end = expressionNumber();
+            BigDecimal step = BigDecimal.ONE;
+
+            if (currentPosition().getToken().equals(Token.DOT_DOT)) { // step 지정된 경우
+                consume(Token.DOT_DOT);
+                step = expressionNumber();
+            }
+            consume(Token.RIGHT_PAREN);
+
+            if (step.compareTo(BigDecimal.ZERO) == 0) {
+                throw new ParseException(fileName, "Step cannot be zero",
+                        currentPosition().getLine(),
+                        currentPosition().getColumn(),
+                        getCurrentLine());
+            }
+
+            if (step.compareTo(BigDecimal.ZERO) > 0) {
+                for (BigDecimal i = start; i.compareTo(end) <= 0; i = i.add(step)) {
+                    variables.put(variable, i);
+                    executeForLoopBody();
+                }
+            } else {
+                for (BigDecimal i = start; i.compareTo(end) >= 0; i = i.add(step)) {
+                    variables.put(variable, i);
+                    executeForLoopBody();
+                }
+            }
+
+        } else {
+            throw new ParseException(fileName, "Expected identifier or number literal after 'in'",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
+        }
+    }
+
+    private void executeForLoopBody() throws ParseException {
+        if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
+            consume(Token.LEFT_BRACE);
+            block();
+            consume(Token.RIGHT_BRACE);
+        } else {
+            statement();
+        }
     }
 
     private void printStatement(boolean ln) throws ParseException {
@@ -557,6 +650,7 @@ public class Parser {
             case Token.STRING -> left instanceof String;
             case Token.BOOLEAN -> left instanceof Boolean;
             case Token.CHAR -> left instanceof Character;
+            case Token.ARRAY -> left instanceof List;
             case Token.NULL -> left == null;
             default -> throw new ParseException(fileName, "Unsupported type: " + type.toLowerCase(),
                     currentPosition().getLine(),
