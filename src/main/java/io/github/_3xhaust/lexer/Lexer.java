@@ -327,8 +327,9 @@ public class Lexer {
             }
             position++;
         }
+        line++;
         position += 2; // skip */
-        column += 2;
+        column = 1; // 주석 종료 후 column 초기화
     }
 
     private char peek(int offset) {

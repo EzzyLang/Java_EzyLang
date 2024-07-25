@@ -1,9 +1,7 @@
-d: number = 1
+/*d: number = 1
 
 print("${d}"+ "b" + "c")
-if(asdf)
 
-/*
 println(1+1*2)
 
 a: number = 1
@@ -52,5 +50,4 @@ if(a == 1 || b == "2") { // 이거 되게
 
 if(a == 1 && b == "2") { // 이거 되게
     print("a is 1 and b is 2")
-}
-*/
+}*/
