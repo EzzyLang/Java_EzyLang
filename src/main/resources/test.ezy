@@ -1,59 +1,27 @@
-a: number[] = [1, 2, 3, 4, 5]
-
-for(i: number in a) {
-    println(i)
+arr: number[] = [5, 2, 3, 4, 1]
+/*
+print("정렬 전: ")
+for (beforeSort: number in arr) {
+  print(beforeSort + " ")
 }
 
-/*d: number = 1
-
-print("${d}"+ "b" + "c")
-
-println(1+1*2)
-
-a: number = 1
-b: string = "2"
-c: boolean = true
-
-println("a: ${a} b: ${b} c: ${c}")
-
-if(a == 1) {
-    println("a is 1")
-} else {
-    println("a is not 1")
+n: number = arr.length
+temp: number = 0
+for (i: number in 0 .. n - 2) {
+    for (j: number in 0 .. n - i - 2) {
+        if (arr[j] >= arr[j + 1]) {
+            temp = arr[j]
+            arr[j] = arr[j + 1]
+            arr[j + 1] = temp
+        }
+    }
 }
 
-if(b is string) {
-    println("b is string")
-}else {
-    println("b is not string")
-}
-
-if(c is number) {
-    println("c is number")
-}else if(c is boolean) {
-    println("c is boolean")
-}
-
-if(a != 2) {
-    println("a is not 2")
-}
-
-if(d is null) {
-    print("d is null")
-}
-
-println("a" + "b")
-
-
-
-if(!(a is number) { // 이거 되게
-    print("a is 1 and b is 2")
-}
-
-if(a == 1 || b == "2") { // 이거 되게
-    print("a is 1 or b is 2")
-}
-
-if(a == 1 && b == "2") { // 이거 되게
-    print("a is 1 and b is 2")
+print("\n정렬 후: ")
+for (afterSort: number in arr) {
+  print(afterSort + " ")
 }*/
+
+for(i: number in arr) {
+    print(i)
+}

@@ -87,8 +87,7 @@ public class Token {
 
     // 루프
     public static final String IN = "in";
-    public static final String RANGE = "range";
-    public static final String STEP = "step";
+    public static final String DOT_LENGTH = ".length";
 
     // 기호
     public static final String LEFT_PAREN = "(";
@@ -101,6 +100,7 @@ public class Token {
     public static final String ARROW = "->";
     public static final String COMMA = ",";
     public static final String DOT = ".";
+    public static final String DOT_DOT = "..";
     public static final String COLON = ":";
     public static final String SEMICOLON = ";";
 

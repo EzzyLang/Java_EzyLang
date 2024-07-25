@@ -77,6 +77,7 @@ public class Lexer {
         column++;
         if (position < input.length()) {
             stringLiteral.append(getEscapedCharacter(input.charAt(position)));
+            position++;
             column++;
         }
     }
@@ -133,8 +134,15 @@ public class Lexer {
             case "func" -> tokens.add(new Token(Token.FUNCTION, word, line, startColumn));
             case "in" -> tokens.add(new Token(Token.IN, word, line, startColumn));
             case "array" -> tokens.add(new Token(Token.ARRAY, word, line, startColumn));
-            case ".." -> tokens.add(new Token(Token.RANGE, word, line, startColumn));
             default -> tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
+        }
+
+        if (position < input.length() && input.charAt(position) == '.' &&
+                input.substring(position, Math.min(position + 7, input.length())).equals(".length")) {
+            word += ".length";
+            position += 7; // '.length' 스킵
+            column += 7;
+            tokens.add(new Token(Token.DOT_LENGTH, word, line, startColumn)); // DOT_LENGTH 토큰 추가
         }
     }
 
@@ -168,7 +176,15 @@ public class Lexer {
             case '}' -> tokens.add(new Token(Token.RIGHT_BRACE, null, line, column));
             case ';' -> tokens.add(new Token(Token.SEMICOLON, null, line, column));
             case ',' -> tokens.add(new Token(Token.COMMA, null, line, column));
-            case '.' -> tokens.add(new Token(Token.DOT, null, line, column));
+            case '.' -> {
+                if (peek(1) == '.') { // 다음 문자도 '.'인지 확인
+                    tokens.add(new Token(Token.DOT_DOT, null, line, column)); // .. 토큰 추가
+                    position++; // 다음 문자 ('.' )도 스킵
+                    column++;
+                }else {
+                    tokens.add(new Token(Token.DOT, null, line, column));
+                }
+            }
             case ':' -> tokens.add(new Token(Token.COLON, null, line, column));
             case '[' -> tokens.add(new Token(Token.LEFT_BRACKET, null, line, column));
             case ']' -> tokens.add(new Token(Token.RIGHT_BRACKET, null, line, column));
