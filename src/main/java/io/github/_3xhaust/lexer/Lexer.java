@@ -67,7 +67,7 @@ public class Lexer {
         position++; // skip ending quote
         column++;
 
-        if (stringLiteral.length() > 0) {
+        if (!stringLiteral.isEmpty()) {
             tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
         }
     }
@@ -82,7 +82,7 @@ public class Lexer {
     }
 
     private void handleVariableInString(StringBuilder stringLiteral, int startColumn) {
-        if (stringLiteral.length() > 0) {
+        if (!stringLiteral.isEmpty()) {
             tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
             stringLiteral.setLength(0);
         }
@@ -115,6 +115,7 @@ public class Lexer {
         switch (word) {
             case "number", "char", "string", "boolean", "null", "void" -> tokens.add(new Token(word.toLowerCase(), word, line, startColumn));
             case "true", "false" -> tokens.add(new Token(Token.BOOLEAN_LITERAL, word, line, startColumn));
+            case "println" -> tokens.add(new Token(Token.PRINTLN, word, line, startColumn));
             case "print" -> tokens.add(new Token(Token.PRINT, word, line, startColumn));
             case "if" -> tokens.add(new Token(Token.IF, word, line, startColumn));
             case "else" -> handleElseToken(word, startColumn);

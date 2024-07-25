@@ -31,7 +31,8 @@ public class Parser {
 
     private void statement() throws ParseException {
         switch (currentPosition().getToken()) {
-            case Token.PRINT -> printStatement();
+            case Token.PRINT -> printStatement(false);
+            case Token.PRINTLN -> printStatement(true);
             case Token.IF -> ifStatement();
             case Token.IDENTIFIER, Token.DOLLAR -> {
                 if (peek(1).getToken().equals(Token.EQUAL)) {
@@ -76,7 +77,7 @@ public class Parser {
                     case Token.STRING -> expressionString();
                     case Token.BOOLEAN -> expressionBoolean();
                     case Token.CHAR -> expressionChar();
-                    case Token.NULL -> null;
+                    case Token.NULL -> expressionNull();
                     default -> throw new ParseException("Unsupported type: " + type.toLowerCase(), currentPosition().getLine(), currentPosition().getColumn());
                 };
             } catch (ParseException e) {
@@ -108,8 +109,10 @@ public class Parser {
         variables.put(variableName, value);
     }
 
-    private void printStatement() throws ParseException {
-        consume(Token.PRINT);
+    private void printStatement(boolean ln) throws ParseException {
+        if(ln) consume(Token.PRINTLN);
+        else consume(Token.PRINT);
+
         consume(Token.LEFT_PAREN);
 
         do {
@@ -126,7 +129,8 @@ public class Parser {
         } while (currentPosition().getToken().equals(Token.VARIABLE_LITERAL) ||
                 currentPosition().getToken().equals(Token.STRING_LITERAL));
 
-        System.out.println();
+        if(ln) System.out.println();
+
         consume(Token.RIGHT_PAREN);
     }
 
@@ -328,6 +332,15 @@ public class Parser {
         return consume(Token.CHAR_LITERAL).getValue().charAt(0);
     }
 
+    private Object expressionNull() throws ParseException{
+        if(!currentPosition().getToken().equals(Token.NULL)) {
+            throw new ParseException("Type mismatch: Expected null", currentPosition().getLine(), currentPosition().getColumn());
+        }
+
+        consume(Token.NULL);
+        return null;
+    }
+
     private BigDecimal logicalOrExpression() throws ParseException {
         BigDecimal left = logicalAndExpression();
         while (currentPosition().getToken().equals(Token.OR)) {
@@ -431,6 +444,7 @@ public class Parser {
 
     private Object factor() throws ParseException {
         Token current = currentPosition();
+
         return switch (current.getToken()) {
             case Token.NUMBER_LITERAL -> new BigDecimal(consume(Token.NUMBER_LITERAL).getValue());
             case Token.VARIABLE_LITERAL -> getVariableValue(consume(Token.VARIABLE_LITERAL).getValue());
@@ -443,6 +457,7 @@ public class Parser {
                 }
                 yield result;
             }
+            //case Token.NULL ->
             case Token.IDENTIFIER, Token.DOLLAR -> getVariableValue(consumeVariableName(current));
             default -> throw new ParseException("Unexpected token", current.getLine(), current.getColumn());
         };
@@ -480,6 +495,7 @@ public class Parser {
             case Token.STRING -> left instanceof String;
             case Token.BOOLEAN -> left instanceof Boolean;
             case Token.CHAR -> left instanceof Character;
+            case Token.NULL -> left == null;
             default -> throw new ParseException("Unsupported type: " + type.toLowerCase(), currentPosition().getLine(), currentPosition().getColumn());
         };
     }

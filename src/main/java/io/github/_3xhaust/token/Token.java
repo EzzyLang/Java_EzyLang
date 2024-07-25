@@ -62,6 +62,7 @@ public class Token {
 
     // 함수
     public static final String PRINT = "print";
+    public static final String PRINTLN = "println";
     public static final String FOR_EACH = "forEach";
 
     // 제어문
