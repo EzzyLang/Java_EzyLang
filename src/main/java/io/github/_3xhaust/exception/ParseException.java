@@ -10,6 +10,10 @@ public class ParseException extends Exception {
         this.column = column;
     }
 
+    public String getFormattedMessage() {
+        return String.format("Error at line %d, column %d: %s", line, column, getMessage());
+    }
+
     public int getLine() {
         return line;
     }

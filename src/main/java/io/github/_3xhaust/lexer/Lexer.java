@@ -113,12 +113,13 @@ public class Lexer {
         }
         String word = sb.toString();
         switch (word) {
-            case "number", "char", "string", "boolean", "null", "void" -> tokens.add(new Token(word.toUpperCase(), word, line, startColumn));
+            case "number", "char", "string", "boolean", "null", "void" -> tokens.add(new Token(word.toLowerCase(), word, line, startColumn));
             case "true", "false" -> tokens.add(new Token(Token.BOOLEAN_LITERAL, word, line, startColumn));
             case "print" -> tokens.add(new Token(Token.PRINT, word, line, startColumn));
             case "if" -> tokens.add(new Token(Token.IF, word, line, startColumn));
             case "else" -> handleElseToken(word, startColumn);
-            case "instanceof" -> tokens.add(new Token(Token.INSTANCEOF, word, line, startColumn));
+            case "is" -> tokens.add(new Token(Token.IS, word, line, startColumn));
+            case "func" -> tokens.add(new Token(Token.FUNCTION, word, line, startColumn));
             default -> tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
         }
     }

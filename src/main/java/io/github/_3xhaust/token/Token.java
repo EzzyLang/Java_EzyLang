@@ -44,44 +44,45 @@ public class Token {
     public static final String RIGHT_SHIFT = ">>";
 
     // 데이터타입
-    public static final String NUMBER = "NUMBER";
-    public static final String CHAR = "CHAR";
-    public static final String STRING = "STRING";
-    public static final String BOOLEAN = "BOOLEAN";
-    public static final String NULL = "NULL";
-    public static final String VOID = "VOID";
-    public static final String ARRAY = "ARRAY";
+    public static final String NUMBER = "number";
+    public static final String CHAR = "char";
+    public static final String STRING = "string";
+    public static final String BOOLEAN = "boolean";
+    public static final String NULL = "null";
+    public static final String VOID = "void";
+    public static final String ARRAY = "array";
 
     // 리터럴 - 값을 가질 수 있음
-    public static final String IDENTIFIER = "IDENTIFIER";
-    public static final String NUMBER_LITERAL = "NUMBER_LITERAL";
-    public static final String EXPRESSION_LITERAL = "EXPRESSION_LITERAL";
-    public static final String CHAR_LITERAL = "CHAR_LITERAL";
-    public static final String STRING_LITERAL = "STRING_LITERAL";
-    public static final String BOOLEAN_LITERAL = "BOOLEAN_LITERAL";
-    public static final String VARIABLE_LITERAL = "VARIABLE_LITERAL";
+    public static final String IDENTIFIER = "identifier";
+    public static final String NUMBER_LITERAL = "number";
+    public static final String CHAR_LITERAL = "char";
+    public static final String STRING_LITERAL = "string";
+    public static final String BOOLEAN_LITERAL = "boolean";
+    public static final String VARIABLE_LITERAL = "";
 
     // 함수
-    public static final String PRINT = "PRINT";
+    public static final String PRINT = "print";
     public static final String FOR_EACH = "forEach";
 
     // 제어문
-    public static final String IF = "IF";
-    public static final String ELSE = "ELSE";
-    public static final String ELSE_IF = "ELSE IF";
-    public static final String WHILE = "WHILE";
-    public static final String FOR = "FOR";
-    public static final String BREAK = "BREAK";
-    public static final String CONTINUE = "CONTINUE";
-    public static final String RETURN = "RETURN";
-    public static final String INSTANCEOF = "INSTANCEOF";
+    public static final String IF = "if";
+    public static final String ELSE = "else";
+    public static final String ELSE_IF = "else if";
+    public static final String WHILE = "while";
+    public static final String FOR = "for";
+    public static final String BREAK = "break";
+    public static final String CONTINUE = "continue";
+    public static final String RETURN = "return";
+    public static final String IS = "is";
+
+    public static final String AS = "as";
 
     // 정의
-    public static final String FUNCTION = "FUNC";
+    public static final String FUNCTION = "function";
 
     // 루프
     public static final String RANGE = "..";
-    public static final String IN = "IN";
+    public static final String IN = "in";
 
     // 기호
     public static final String LEFT_PAREN = "(";

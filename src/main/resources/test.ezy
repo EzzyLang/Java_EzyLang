@@ -1,7 +1,3 @@
-a: string = "Hello"
+a: number = null
 
-if(a instanceof string) {
-    print("a is a string")
-} else {
-    print("a is not a string")
-}
+print(a == null)

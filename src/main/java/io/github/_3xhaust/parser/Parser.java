@@ -12,6 +12,7 @@ public class Parser {
     private int position = 0;
     private final Map<String, Object> variables = new HashMap<>();
     private final Set<String> constants = new HashSet<>();
+    private final Set<String> declaredVariables = new HashSet<>();
 
     public Parser(List<Token> tokens) {
         this.tokens = tokens;
@@ -24,8 +25,7 @@ public class Parser {
                 statement();
             }
         } catch (ParseException e) {
-            System.err.println("Error: " + e.getMessage());
-            System.err.println("Line " + e.getLine() + ", Column " + e.getColumn());
+            System.err.println(e.getFormattedMessage());
         }
     }
 
@@ -40,13 +40,56 @@ public class Parser {
                     variableDeclaration();
                 }
             }
-            default -> throw new ParseException("Unexpected token: " + currentPosition().getToken(), currentPosition().getLine(), currentPosition().getColumn());
+            default -> throw new ParseException("Syntax error: Unexpected token '" + currentPosition().getValue() + "'", currentPosition().getLine(), currentPosition().getColumn());
         }
     }
 
     private Token peek(int offset) {
         if (position + offset >= tokens.size()) return new Token(Token.EOF, null, currentPosition().getLine(), currentPosition().getColumn());
         return tokens.get(position + offset);
+    }
+
+    private void variableDeclaration() throws ParseException {
+        boolean isConstant = false;
+        if (currentPosition().getToken().equals(Token.DOLLAR)) {
+            isConstant = true;
+            consume(Token.DOLLAR);
+        }
+
+        String variableName = consume(Token.IDENTIFIER).getValue();
+
+        if (declaredVariables.contains(variableName)) {
+            throw new ParseException("Variable '" + variableName + "' already declared", currentPosition().getLine(), currentPosition().getColumn());
+        }
+
+        consume(Token.COLON);
+        String type = currentPosition().getToken();
+        position++;
+
+        Object value;
+
+        if (currentPosition().getToken().equals(Token.EQUAL)) {
+            consume(Token.EQUAL);
+            try {
+                value = switch (type) {
+                    case Token.NUMBER -> expressionNumber();
+                    case Token.STRING -> expressionString();
+                    case Token.BOOLEAN -> expressionBoolean();
+                    case Token.CHAR -> expressionChar();
+                    case Token.NULL -> null;
+                    default -> throw new ParseException("Unsupported type: " + type.toLowerCase(), currentPosition().getLine(), currentPosition().getColumn());
+                };
+            } catch (ParseException e) {
+                throw new ParseException("Type mismatch: Cannot assign " + currentPosition().getToken().toLowerCase() + " to " + type.toLowerCase(), currentPosition().getLine(), currentPosition().getColumn());
+            }
+        }else throw new ParseException("Variable declaration must include initialization", currentPosition().getLine(), currentPosition().getColumn());
+
+        if (isConstant) {
+            constants.add(variableName);
+        }
+
+        variables.put(variableName, value);
+        declaredVariables.add(variableName);
     }
 
     private void variableAssignment() throws ParseException {
@@ -63,38 +106,6 @@ public class Parser {
 
         Object value = expression();
         variables.put(variableName, value);
-    }
-
-    private void variableDeclaration() throws ParseException {
-        boolean isConstant = false;
-        if (currentPosition().getToken().equals(Token.DOLLAR)) {
-            isConstant = true;
-            consume(Token.DOLLAR);
-        }
-
-        String variableName = consume(Token.IDENTIFIER).getValue();
-
-        if (isConstant && variables.containsKey(variableName)) {
-            throw new ParseException("Cannot reassign constant " + variableName, currentPosition().getLine(), currentPosition().getColumn());
-        }
-
-        consume(Token.COLON);
-        String type = currentPosition().getToken();
-        position++;
-        consume(Token.EQUAL);
-
-        Object value = switch (type) {
-            case Token.NUMBER -> expressionNumber();
-            case Token.STRING -> expressionString();
-            case Token.BOOLEAN -> expressionBoolean();
-            case Token.CHAR -> expressionChar();
-            default -> throw new ParseException("Unsupported type: " + type, currentPosition().getLine(), currentPosition().getColumn());
-        };
-
-        if (isConstant) {
-            constants.add(variableName);
-        }
-        variables.put(variableName, convertType(value, type));
     }
 
     private void printStatement() throws ParseException {
@@ -246,6 +257,7 @@ public class Parser {
             case Token.STRING -> value.toString();
             case Token.BOOLEAN -> convertToBoolean(value);
             case Token.CHAR -> convertToChar(value);
+            case Token.NULL -> null;
             default -> throw new ParseException("Cannot convert " + value.getClass().getSimpleName() + " to " + targetType, currentPosition().getLine(), currentPosition().getColumn());
         };
     }
@@ -281,6 +293,12 @@ public class Parser {
     }
 
     private String expressionString() throws ParseException {
+        if (currentPosition().getToken().equals(Token.NUMBER_LITERAL) ||
+                currentPosition().getToken().equals(Token.BOOLEAN_LITERAL) ||
+                currentPosition().getToken().equals(Token.CHAR_LITERAL)) {
+            throw new ParseException("Type mismatch: Cannot convert " + currentPosition().getToken() + " to string", currentPosition().getLine(), currentPosition().getColumn());
+        }
+
         StringBuilder result = new StringBuilder();
         while (currentPosition().getToken().equals(Token.STRING_LITERAL) || currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
             if (currentPosition().getToken().equals(Token.STRING_LITERAL)) {
@@ -297,6 +315,12 @@ public class Parser {
     }
 
     private Boolean expressionBoolean() throws ParseException {
+        if (currentPosition().getToken().equals(Token.NUMBER_LITERAL) ||
+                currentPosition().getToken().equals(Token.STRING_LITERAL) ||
+                currentPosition().getToken().equals(Token.CHAR_LITERAL)) {
+            throw new ParseException("Type mismatch: Cannot convert " + currentPosition().getToken() + " to boolean", currentPosition().getLine(), currentPosition().getColumn());
+        }
+
         return Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
     }
 
@@ -450,24 +474,26 @@ public class Parser {
         }
     }
 
-    private boolean evaluateInstanceOf(Object left, String type) throws ParseException {
+    private boolean evaluateIs(Object left, String type) throws ParseException {
         return switch (type) {
             case Token.NUMBER -> left instanceof BigDecimal;
             case Token.STRING -> left instanceof String;
             case Token.BOOLEAN -> left instanceof Boolean;
             case Token.CHAR -> left instanceof Character;
-            default -> throw new ParseException("Unsupported type: " + type, currentPosition().getLine(), currentPosition().getColumn());
+            default -> throw new ParseException("Unsupported type: " + type.toLowerCase(), currentPosition().getLine(), currentPosition().getColumn());
         };
     }
 
     private Object expression() throws ParseException {
         Object left = term();
-        while (isExpressionOperator(currentPosition().getToken()) || currentPosition().getToken().equals(Token.INSTANCEOF)) {
+
+        while (isExpressionOperator(currentPosition().getToken()) || currentPosition().getToken().equals(Token.IS)) {
+
             Token operator = currentPosition();
-            position++;
-            if (operator.getToken().equals(Token.INSTANCEOF)) {
+            consume(operator.getToken());
+            if (operator.getToken().equals(Token.IS)) {
                 String type = consume(currentPosition().getToken()).getToken();
-                left = evaluateInstanceOf(left, type);
+                left = evaluateIs(left, type);
             } else {
                 Object right = term();
                 left = evaluateExpressionOperation(left, right, operator.getToken());
@@ -485,12 +511,20 @@ public class Parser {
 
     private Object evaluateExpressionOperation(Object left, Object right, String operator) throws ParseException {
         if (left instanceof BigDecimal && right instanceof BigDecimal) {
-            return evaluateArithmetic((BigDecimal) left, (BigDecimal) right, operator);
+            return evaluateArithmeticOperation((BigDecimal) left, (BigDecimal) right, operator);
         } else if (left instanceof String && right instanceof String) {
             return evaluateStringOperation((String) left, (String) right, operator);
         } else {
             throw new ParseException("Invalid operation between types", currentPosition().getLine(), currentPosition().getColumn());
         }
+    }
+
+    private Object evaluateArithmeticOperation(BigDecimal left, BigDecimal right, String operator) {
+        return switch (operator) {
+            case Token.EQUAL_EQUAL -> left.equals(right);
+            case Token.NOT_EQUAL -> !left.equals(right);
+            default -> left;
+        };
     }
 
     private Object evaluateStringOperation(String left, String right, String operator) {
