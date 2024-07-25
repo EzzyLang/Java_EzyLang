@@ -48,9 +48,12 @@ public class Token {
     public static final String CHAR = "char";
     public static final String STRING = "string";
     public static final String BOOLEAN = "boolean";
+    public static final String NUMBER_ARRAY = "number array";
+    public static final String CHAR_ARRAY = "char array";
+    public static final String STRING_ARRAY = "string array";
+    public static final String BOOLEAN_ARRAY = "boolean array";
     public static final String NULL = "null";
     public static final String VOID = "void";
-    public static final String ARRAY = "array";
 
     // 리터럴 - 값을 가질 수 있음
     public static final String IDENTIFIER = "identifier";

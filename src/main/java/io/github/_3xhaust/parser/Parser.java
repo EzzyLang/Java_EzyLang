@@ -20,7 +20,7 @@ public class Parser {
         this.tokens = tokens;
         this.fileName = fileName;
         this.lines = input.split("\n");
-        //tokens.forEach(token -> System.out.println(token.getToken()));
+        tokens.forEach(token -> System.out.println(token.getToken()));
     }
 
     public void parse() {
@@ -52,11 +52,6 @@ public class Parser {
         }
     }
 
-    private Token peek(int offset) {
-        if (position + offset >= tokens.size()) return new Token(Token.EOF, null, currentPosition().getLine(), currentPosition().getColumn());
-        return tokens.get(position + offset);
-    }
-
     private void variableDeclaration() throws ParseException {
         boolean isConstant = currentPosition().getToken().equals(Token.DOLLAR);
         if (isConstant) consume(Token.DOLLAR);
@@ -67,11 +62,36 @@ public class Parser {
         consume(Token.COLON);
         String type = consume(currentPosition().getToken()).getToken();
 
-        consume(Token.EQUAL);
-        Object value = getTypedValue(type);
+        if (type.contains("array")) {
+            consume(Token.EQUAL);
+            consume(Token.LEFT_BRACKET);
 
-        if (isConstant) constants.add(variableName);
+            List<Object> array = new ArrayList<>();
+            while (!currentPosition().getToken().equals(Token.RIGHT_BRACKET)) {
+                array.add(parseArrayElement(type)); // 배열 요소 파싱
+                if (currentPosition().getToken().equals(Token.COMMA)) {
+                    consume(Token.COMMA);
+                }
+            }
+            consume(Token.RIGHT_BRACKET);
 
+            assignVariable(variableName, array, isConstant);
+        } else {
+            consume(Token.EQUAL);
+            Object value = getTypedValue(type);
+            assignVariable(variableName, value, isConstant);
+        }
+    }
+
+    private Object parseArrayElement(String arrayType) throws ParseException {
+        String elementType = arrayType.replace(" array", "");
+        return getTypedValue(elementType);
+    }
+
+    private void assignVariable(String variableName, Object value, boolean isConstant) {
+        if (isConstant) {
+            constants.add(variableName);
+        }
         variables.put(variableName, value);
         declaredVariables.add(variableName);
     }
@@ -294,55 +314,6 @@ public class Parser {
         return position >= tokens.size() || currentPosition().getToken().equals(Token.EOF);
     }
 
-    private Object convertType(Object value, String targetType) throws ParseException {
-        if (value == null) return null;
-
-        return switch (targetType) {
-            case Token.NUMBER -> convertToNumber(value);
-            case Token.STRING -> value.toString();
-            case Token.BOOLEAN -> convertToBoolean(value);
-            case Token.CHAR -> convertToChar(value);
-            case Token.NULL -> null;
-            default -> throw new ParseException(fileName,
-                    "Cannot convert " + value.getClass().getSimpleName() + " to " + targetType,
-                            currentPosition().getLine(),
-                            currentPosition().getColumn(),
-                            getCurrentLine());
-        };
-    }
-
-    private BigDecimal convertToNumber(Object value) throws ParseException {
-        if (value instanceof BigDecimal) return (BigDecimal) value;
-        if (value instanceof String) return new BigDecimal((String) value);
-        if (value instanceof Boolean) return (Boolean) value ? BigDecimal.ONE : BigDecimal.ZERO;
-        if (value instanceof Character) return new BigDecimal((int) (Character) value);
-        throw new ParseException(fileName, "Cannot convert " + value.getClass().getSimpleName() + " to number",
-                currentPosition().getLine(),
-                currentPosition().getColumn(),
-                getCurrentLine());
-    }
-
-    private Boolean convertToBoolean(Object value) {
-        if (value instanceof Boolean) return (Boolean) value;
-        if (value instanceof BigDecimal) return ((BigDecimal) value).compareTo(BigDecimal.ZERO) != 0;
-        if (value instanceof String) return !((String) value).isEmpty();
-        if (value instanceof Character) return ((Character) value) != '\0';
-        return false;
-    }
-
-    private Character convertToChar(Object value) throws ParseException {
-        if (value instanceof Character) return (Character) value;
-        if (value instanceof String && ((String) value).length() == 1) return ((String) value).charAt(0);
-        if (value instanceof BigDecimal) {
-            int intValue = ((BigDecimal) value).intValue();
-            if (intValue >= 0 && intValue <= 65535) return (char) intValue;
-        }
-        throw new ParseException(fileName, "Cannot convert " + value.getClass().getSimpleName() + " to char",
-                currentPosition().getLine(),
-                currentPosition().getColumn(),
-                getCurrentLine());
-    }
-
     private BigDecimal expressionNumber() throws ParseException {
         return logicalOrExpression();
     }
@@ -510,12 +481,42 @@ public class Parser {
                 }
                 yield result;
             }
-            case Token.IDENTIFIER, Token.DOLLAR -> getVariableValue(consumeVariableName(current));
+            case Token.IDENTIFIER -> {
+                String variableName = consume(Token.IDENTIFIER).getValue();
+                if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
+                    consume(Token.LEFT_BRACKET);
+                    int index = ((BigDecimal) expression()).intValue();
+                    consume(Token.RIGHT_BRACKET);
+                    yield getVariableValueAtIndex(variableName, index);
+                } else {
+                    yield getVariableValue(variableName);
+                }
+            }
+            case Token.DOLLAR -> getVariableValue(consumeVariableName(current));
             default -> throw new ParseException(fileName, "Unexpected token",
                     currentPosition().getLine(),
                     currentPosition().getColumn(),
                     getCurrentLine());
         };
+    }
+
+    private Object getVariableValueAtIndex(String variableName, int index) throws ParseException {
+        Object variable = variables.get(variableName);
+        if (variable instanceof List) {
+            List<?> array = (List<?>) variable;
+            if (index < 0 || index >= array.size()) {
+                throw new ParseException(fileName, "Array index out of bounds: " + index,
+                        currentPosition().getLine(),
+                        currentPosition().getColumn(),
+                        getCurrentLine());
+            }
+            return array.get(index);
+        } else {
+            throw new ParseException(fileName, "Variable '" + variableName + "' is not an array",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
+        }
     }
 
     private String consumeVariableName(Token current) throws ParseException {
@@ -642,5 +643,10 @@ public class Parser {
 
     private String getCurrentLine() {
         return lines[currentPosition().getLine() - 1];
+    }
+
+    private Token peek(int offset) {
+        if (position + offset >= tokens.size()) return new Token(Token.EOF, null, currentPosition().getLine(), currentPosition().getColumn());
+        return tokens.get(position + offset);
     }
 }

@@ -112,6 +112,15 @@ public class Lexer {
             column++;
         }
         String word = sb.toString();
+
+        if (position < input.length() && input.charAt(position) == '[' && peek(1) == ']') {
+            word += " array";
+            position += 2; // '[]' 스킵
+            column += 2;
+            tokens.add(new Token(word.toLowerCase(), word, line, startColumn));
+            return;
+        }
+
         switch (word) {
             case "number", "char", "string", "boolean", "null", "void" -> tokens.add(new Token(word.toLowerCase(), word, line, startColumn));
             case "true", "false" -> tokens.add(new Token(Token.BOOLEAN_LITERAL, word, line, startColumn));

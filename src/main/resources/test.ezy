@@ -1,4 +1,6 @@
-a: number = "asdf"
+a: number[] = [1, 2, 3, 4, 5]
+
+println(a[0])
 
 /*d: number = 1
 
