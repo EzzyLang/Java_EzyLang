@@ -110,26 +110,32 @@ public class Parser {
     }
 
     private void printStatement(boolean ln) throws ParseException {
-        if(ln) consume(Token.PRINTLN);
+        if (ln) consume(Token.PRINTLN);
         else consume(Token.PRINT);
 
         consume(Token.LEFT_PAREN);
 
-        do {
+        StringBuilder result = new StringBuilder();
+        while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
             if (currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
                 String variableName = consume(Token.VARIABLE_LITERAL).getValue();
+
                 if (!variables.containsKey(variableName)) {
                     throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
                 }
-                System.out.print(variables.get(variableName));
-            } else {
-                Object result = expression();
-                System.out.print(result);
-            }
-        } while (currentPosition().getToken().equals(Token.VARIABLE_LITERAL) ||
-                currentPosition().getToken().equals(Token.STRING_LITERAL));
 
-        if(ln) System.out.println();
+                result.append(variables.get(variableName));
+            } else if (currentPosition().getToken().equals(Token.STRING_LITERAL)) {
+                result.append(consume(Token.STRING_LITERAL).getValue());
+            } else if (currentPosition().getToken().equals(Token.PLUS)) {
+                consume(Token.PLUS);
+            } else {
+                result.append(expression());
+            }
+        }
+
+        if (ln) System.out.println(result.toString());
+        else System.out.print(result.toString());
 
         consume(Token.RIGHT_PAREN);
     }
@@ -297,14 +303,8 @@ public class Parser {
     }
 
     private String expressionString() throws ParseException {
-        if (currentPosition().getToken().equals(Token.NUMBER_LITERAL) ||
-                currentPosition().getToken().equals(Token.BOOLEAN_LITERAL) ||
-                currentPosition().getToken().equals(Token.CHAR_LITERAL)) {
-            throw new ParseException("Type mismatch: Cannot convert " + currentPosition().getToken() + " to string", currentPosition().getLine(), currentPosition().getColumn());
-        }
-
         StringBuilder result = new StringBuilder();
-        while (currentPosition().getToken().equals(Token.STRING_LITERAL) || currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
+        while (currentPosition().getToken().equals(Token.STRING_LITERAL) || currentPosition().getToken().equals(Token.VARIABLE_LITERAL) || currentPosition().getToken().equals(Token.PLUS)) {
             if (currentPosition().getToken().equals(Token.STRING_LITERAL)) {
                 result.append(consume(Token.STRING_LITERAL).getValue());
             } else if (currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
@@ -313,18 +313,14 @@ public class Parser {
                     throw new ParseException("Undefined variable: " + variableName, currentPosition().getLine(), currentPosition().getColumn());
                 }
                 result.append(variables.get(variableName).toString());
+            } else if (currentPosition().getToken().equals(Token.PLUS)) {
+                consume(Token.PLUS);
             }
         }
         return result.toString();
     }
 
     private Boolean expressionBoolean() throws ParseException {
-        if (currentPosition().getToken().equals(Token.NUMBER_LITERAL) ||
-                currentPosition().getToken().equals(Token.STRING_LITERAL) ||
-                currentPosition().getToken().equals(Token.CHAR_LITERAL)) {
-            throw new ParseException("Type mismatch: Cannot convert " + currentPosition().getToken() + " to boolean", currentPosition().getLine(), currentPosition().getColumn());
-        }
-
         return Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
     }
 
@@ -457,7 +453,6 @@ public class Parser {
                 }
                 yield result;
             }
-            //case Token.NULL ->
             case Token.IDENTIFIER, Token.DOLLAR -> getVariableValue(consumeVariableName(current));
             default -> throw new ParseException("Unexpected token", current.getLine(), current.getColumn());
         };
@@ -503,7 +498,8 @@ public class Parser {
     private Object expression() throws ParseException {
         Object left = term();
 
-        while (isExpressionOperator(currentPosition().getToken()) || currentPosition().getToken().equals(Token.IS)) {
+        while (isExpressionOperator(currentPosition().getToken()) ||
+                currentPosition().getToken().equals(Token.IS)) {
 
             Token operator = currentPosition();
             consume(operator.getToken());

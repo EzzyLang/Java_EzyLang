@@ -58,7 +58,7 @@ public class Token {
     public static final String CHAR_LITERAL = "char";
     public static final String STRING_LITERAL = "string";
     public static final String BOOLEAN_LITERAL = "boolean";
-    public static final String VARIABLE_LITERAL = "";
+    public static final String VARIABLE_LITERAL = "VARIABLE_LITERAL";
 
     // 함수
     public static final String PRINT = "print";

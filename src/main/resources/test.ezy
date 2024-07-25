@@ -1,3 +1,8 @@
+d: number = 1
+
+print("${d}"+ "b" + "c")
+
+/*
 println(1+1*2)
 
 a: number = 1
@@ -28,17 +33,13 @@ if(a != 2) {
     println("a is not 2")
 }
 
-d: null = null
-
 if(d is null) {
     print("d is null")
 }
 
 println("a" + "b")
 
-print((1+1)*2)
 
-/*
 
 if(!(a is number) { // 이거 되게
     print("a is 1 and b is 2")
