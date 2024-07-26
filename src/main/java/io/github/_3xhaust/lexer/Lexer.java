@@ -363,6 +363,7 @@ public class Lexer {
         }
 
         line++;
+        column = 1;
     }
 
     private void tokenizeBlockComment() {

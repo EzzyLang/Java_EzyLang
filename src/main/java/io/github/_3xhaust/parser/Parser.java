@@ -75,41 +75,47 @@ public class Parser {
         variableTypes.put(variableName, type);
     }
 
+//    private void declareVariable(String variableName, String type, boolean isConstant) throws ParseException {
+//        Object value;
+//
+//        if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.LEFT_BRACKET)) {
+//            String arrayVariable = consume(Token.IDENTIFIER).getValue();
+//            consume(Token.LEFT_BRACKET);
+//
+//            int index = ((BigDecimal) expression()).intValue();
+//
+//            consume(Token.RIGHT_BRACKET);
+//            value = getVariableValueAtIndex(arrayVariable, index);
+//        } else if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.DOT_LENGTH)) {
+//            String arrayVariable = consume(Token.IDENTIFIER).getValue();
+//            consume(Token.DOT_LENGTH);
+//
+//            value = getArrayLength(arrayVariable);
+//        } else if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.PLUS)) {
+//            String firstVariable = consume(Token.IDENTIFIER).getValue();
+//            consume(Token.PLUS);
+//            String secondVariable = consume(Token.IDENTIFIER).getValue();
+//
+//            Object firstValue = getVariableValue(firstVariable);
+//            Object secondValue = getVariableValue(secondVariable);
+//
+//            if (firstValue instanceof BigDecimal && secondValue instanceof BigDecimal) {
+//                value = ((BigDecimal) firstValue).add((BigDecimal) secondValue);
+//            } else if (firstValue instanceof String && secondValue instanceof String) {
+//                value = firstValue.toString() + secondValue.toString();
+//            } else {
+//                throw new ParseException(fileName, "Type mismatch: Cannot add " + firstValue.getClass().getSimpleName() + " and " + secondValue.getClass().getSimpleName(),
+//                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+//            }
+//        } else {
+//            value = getTypedValue(type);
+//        }
+//
+//        assignVariable(variableName, value, isConstant);
+//    }
+
     private void declareVariable(String variableName, String type, boolean isConstant) throws ParseException {
-        Object value;
-
-        if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.LEFT_BRACKET)) {
-            String arrayVariable = consume(Token.IDENTIFIER).getValue();
-            consume(Token.LEFT_BRACKET);
-
-            int index = ((BigDecimal) expression()).intValue();
-
-            consume(Token.RIGHT_BRACKET);
-            value = getVariableValueAtIndex(arrayVariable, index);
-        } else if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.DOT_LENGTH)) {
-            String arrayVariable = consume(Token.IDENTIFIER).getValue();
-            consume(Token.DOT_LENGTH);
-
-            value = getArrayLength(arrayVariable);
-        } else if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.PLUS)) {
-            String firstVariable = consume(Token.IDENTIFIER).getValue();
-            consume(Token.PLUS);
-            String secondVariable = consume(Token.IDENTIFIER).getValue();
-
-            Object firstValue = getVariableValue(firstVariable);
-            Object secondValue = getVariableValue(secondVariable);
-
-            if (firstValue instanceof BigDecimal && secondValue instanceof BigDecimal) {
-                value = ((BigDecimal) firstValue).add((BigDecimal) secondValue);
-            } else if (firstValue instanceof String && secondValue instanceof String) {
-                value = firstValue.toString() + secondValue.toString();
-            } else {
-                throw new ParseException(fileName, "Type mismatch: Cannot add " + firstValue.getClass().getSimpleName() + " and " + secondValue.getClass().getSimpleName(),
-                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-            }
-        } else {
-            value = getTypedValue(type);
-        }
+        Object value = getTypedValue(type); // expression() 함수를 통해 값을 가져오도록 수정
 
         assignVariable(variableName, value, isConstant);
     }
@@ -166,22 +172,21 @@ public class Parser {
                         currentPosition().getColumn(),
                         getCurrentLine());
             };
-        } else if (currentTokenType.equals(Token.IDENTIFIER) || currentTokenType.equals(Token.DOLLAR)) {
-            String variableName = consumeVariableName(currentPosition());
-            if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
-                consume(Token.LEFT_BRACKET);
-                int index = ((BigDecimal) expression()).intValue();
-                consume(Token.RIGHT_BRACKET);
-                return getVariableValueAtIndex(variableName, index);
-            } else {
-                return getVariableValue(variableName);
+        } else {
+            // 변수 선언 시에도 expression()을 통해 값을 가져오도록 수정
+            Object result = expression();
+
+            // 타입 체크 로직 추가
+            if ((type.equals(Token.NUMBER) && !(result instanceof BigDecimal)) ||
+                    (type.equals(Token.STRING) && !(result instanceof String)) ||
+                    (type.equals(Token.BOOLEAN) && !(result instanceof Boolean)) ||
+                    (type.equals(Token.CHAR) && !(result instanceof Character)) ||
+                    (type.equals(Token.NULL) && result != null)) {
+                throw new ParseException(fileName, "Type mismatch: Expected " + type.toLowerCase() + ", found " + result.getClass().getSimpleName(),
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
             }
 
-        }else {
-            throw new ParseException(fileName, "Type mismatch: Cannot assign " + currentTokenType.toLowerCase() + " to " + type.toLowerCase(),
-                    currentPosition().getLine(),
-                    currentPosition().getColumn(),
-                    getCurrentLine());
+            return result;
         }
     }
 
@@ -693,7 +698,7 @@ public class Parser {
                     int index = ((BigDecimal) expression()).intValue();
                     consume(Token.RIGHT_BRACKET);
                     yield getVariableValueAtIndex(identifier, index);
-                } else if (currentPosition().getToken().equals(Token.DOT_LENGTH)) { // .length 처리 추가
+                } else if (currentPosition().getToken().equals(Token.DOT_LENGTH)) {
                     consume(Token.DOT_LENGTH);
                     yield getArrayLength(identifier);
                 } else {
