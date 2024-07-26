@@ -48,6 +48,7 @@ public class Lexer {
             char currentChar = input.charAt(position);
 
             if (currentChar == '.' && !hasDecimalPoint) {
+                if (peek(1) == '.') break;
                 hasDecimalPoint = true;
             } else if (!Character.isDigit(currentChar)) {
                 break;
@@ -196,12 +197,10 @@ public class Lexer {
             case '.' -> {
                 if (peek(1) == '.') { // 다음 문자도 '.'인지 확인
                     tokens.add(new Token(Token.DOT_DOT, null, line, column)); // .. 토큰 추가
-                    position += 2; // 다음 문자 ('.' )도 스킵
-                    column += 2;
-                } else { // 다음 문자가 '.' 가 아닌 경우에는 . 토큰 추가
-                    tokens.add(new Token(Token.DOT, null, line, column));
-                    position++; // 현재 문자('.') 스킵
+                    position++; // 다음 문자 ('.' )도 스킵
                     column++;
+                } else {
+                    tokens.add(new Token(Token.DOT, null, line, column));
                 }
             }
             case ':' -> tokens.add(new Token(Token.COLON, null, line, column));

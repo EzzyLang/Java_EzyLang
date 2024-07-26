@@ -45,13 +45,13 @@ println()
 
 // for 루프 테스트 (범위)
 println("Range from 1 to 5:")
-for (i: number in 1 .. 5) {
+for (i: number in 1..5) {
     println(i)
 }
 
 // for 루프 테스트 (범위와 스텝)
 println("Even numbers from 0 to 10:")
-for (i: number in 0 .. 10 .. 2) {
+for (i: number in 0..10..2) {
     println(i)
 }
 
