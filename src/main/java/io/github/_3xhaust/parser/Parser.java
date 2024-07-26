@@ -22,9 +22,7 @@ public class Parser {
     public Parser(List<Token> tokens, String fileName, String input) {
         this.fileName = fileName;
         this.lines = input.split("\n");
-        this.tokens = tokens.stream()
-                .filter(token1 -> !token1.getToken().equals(Token.WHITESPACE))
-                .collect(Collectors.toList());
+        this.tokens = tokens;
 
     }
 
@@ -895,7 +893,7 @@ public class Parser {
 
     private Token consume(String expectedToken) throws ParseException {
         Token current = currentPosition();
-        if (current.getToken().equals(expectedToken) || current.getToken().equals(Token.WHITESPACE)) { // WHITESPACE 토큰 무시
+        if (current.getToken().equals(expectedToken)) {
             position++;
             return current;
         } else {

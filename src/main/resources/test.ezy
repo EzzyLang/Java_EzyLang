@@ -37,10 +37,11 @@ arr[0] = 10
 println("Modified array: " + arr[0] + ", " + arr[1] + ", " + arr[2])
 
 // for 루프 테스트 (배열)
-println("Array elements:")
+print("Array elements: ")
 for (item: number in arr) {
-    println(item)
+    print(item )
 }
+println()
 
 // for 루프 테스트 (범위)
 println("Range from 1 to 5:")

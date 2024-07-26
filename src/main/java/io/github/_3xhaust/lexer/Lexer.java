@@ -29,8 +29,6 @@ public class Lexer {
                 tokenizeIdentifierOrKeyword();
             } else if (current == '\n' || current == '\r') {
                 handleNewline();
-            } else if (Character.isWhitespace(current)) { // 공백 문자 처리 추가
-                tokenizeWhitespace();
             }
             else {
                 tokenizeSymbol(current);
@@ -39,15 +37,6 @@ public class Lexer {
 
         tokens.add(new Token(Token.EOF, null, line, column));
         return tokens;
-    }
-
-    private void tokenizeWhitespace() {
-        int startColumn = column;
-        while (position < input.length() && Character.isWhitespace(input.charAt(position))) {
-            position++;
-            column++;
-        }
-        tokens.add(new Token(Token.WHITESPACE, null, line, startColumn));
     }
 
     private void tokenizeNumber() {
