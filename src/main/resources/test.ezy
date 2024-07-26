@@ -2,9 +2,10 @@
 println(a * 2)
 println((a*2))*/
 
-print("as" + "as")
+a: number = 10
+println(1+2 * a)
 
-arr: number[] = [5, 2, 3, 4, 1]
+/*arr: number[] = [5, 2, 3, 4, 1]
 
 print("정렬 전: ")
 for (beforeSort: number in arr) {
@@ -26,5 +27,5 @@ for (i: number in 0 .. n - 2) {
 print("\n정렬 후: ")
 for (afterSort: number in arr) {
   print("${afterSort} ")
-}
+}*/
 

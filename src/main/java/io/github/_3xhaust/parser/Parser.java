@@ -149,7 +149,18 @@ public class Parser {
                         currentPosition().getColumn(),
                         getCurrentLine());
             };
-        } else {
+        } else if (currentTokenType.equals(Token.IDENTIFIER) || currentTokenType.equals(Token.DOLLAR)) {
+            String variableName = consumeVariableName(currentPosition());
+            if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
+                consume(Token.LEFT_BRACKET);
+                int index = ((BigDecimal) expression()).intValue();
+                consume(Token.RIGHT_BRACKET);
+                return getVariableValueAtIndex(variableName, index);
+            } else {
+                return getVariableValue(variableName);
+            }
+
+        }else {
             throw new ParseException(fileName, "Type mismatch: Cannot assign " + currentTokenType.toLowerCase() + " to " + type.toLowerCase(),
                     currentPosition().getLine(),
                     currentPosition().getColumn(),
@@ -408,15 +419,11 @@ public class Parser {
         consume(ln ? Token.PRINTLN : Token.PRINT);
 
         consume(Token.LEFT_PAREN);
-        StringBuilder result = new StringBuilder();
-
-        while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
-            result.append(evaluateStringExpression());
-        }
-
-        System.out.print(ln ? result + "\n" : result);
-
+        Object result = expression();
         consume(Token.RIGHT_PAREN);
+
+        String output = (result instanceof String) ? (String) result : String.valueOf(result);
+        System.out.print(ln ? output + "\n" : output);
     }
 
     private String evaluateStringExpression() throws ParseException {
