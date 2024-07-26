@@ -39,9 +39,6 @@ println("AND: " + (x && y))
 println("OR: " + (x || y))
 // TODO: println("NOT: " + (!x))
 
-
-
-
 // 6. 문자열 연산 테스트
 str1: string = "Hello"
 str2: string = "World"
