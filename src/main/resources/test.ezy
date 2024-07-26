@@ -7,7 +7,7 @@ println("x + y = " + z)
 // 문자열 테스트
 str: string = "Hello, "
 str = str + "World!"
-println(str)
+println("${str}")
 
 // 불리언 테스트
 b1: boolean = true
@@ -16,7 +16,7 @@ println("b1 AND b2 = " + (b1 && b2))
 println("b1 OR b2 = " + (b1 || b2))
 
 // 문자 테스트
-ch: char = 'AD'
+ch: char = 'A'
 println("Character: " + ch)
 
 // null 테스트
@@ -28,7 +28,7 @@ $PI: number = 3.14159
 println("PI: " + $PI)
 
 // 배열 테스트
-arr: number array = [1, 2, 3, 4, 5]
+arr: number[] = [1, 2, 3, 4, 5]
 println("Array length: " + arr.length)
 println("Third element: " + arr[2])
 
@@ -44,13 +44,13 @@ for (item: number in arr) {
 
 // for 루프 테스트 (범위)
 println("Range from 1 to 5:")
-for (i: number in 1..5) {
+for (i: number in 1 .. 5) {
     println(i)
 }
 
 // for 루프 테스트 (범위와 스텝)
 println("Even numbers from 0 to 10:")
-for (i: number in 0..10..2) {
+for (i: number in 0 .. 10 .. 2) {
     println(i)
 }
 
@@ -84,14 +84,14 @@ println("str is string: " + (str is string))
 println("arr is array: " + (arr is array))
 
 // 문자열 배열 테스트
-strArr: string array = ["apple", "banana", "cherry"]
+strArr: string[] = ["apple", "banana", "cherry"]
 println("Fruits:")
 for (fruit: string in strArr) {
     println(fruit)
 }
 
 // 다차원 배열 테스트
-matrix: number array array = [[1, 2], [3, 4], [5, 6]]
+matrix: number[][] = [[1, 2], [3, 4], [5, 6]]
 println("Matrix:")
 for (row: number array in matrix) {
     for (elem: number in row) {

@@ -8,15 +8,13 @@ import java.util.List;
 
 public class Lexer {
     private final String input;
-    private final String fileName;
     private final List<Token> tokens = new ArrayList<>();
     private int position = 0;
     private int line = 1;
     private int column = 1;
 
-    public Lexer(String input, String fileName) {
+    public Lexer(String input) {
         this.input = input;
-        this.fileName = fileName;
     }
 
     public List<Token> tokenize() throws ParseException {
@@ -31,7 +29,10 @@ public class Lexer {
                 tokenizeIdentifierOrKeyword();
             } else if (current == '\n' || current == '\r') {
                 handleNewline();
-            } else {
+            } else if (Character.isWhitespace(current)) { // 공백 문자 처리 추가
+                tokenizeWhitespace();
+            }
+            else {
                 tokenizeSymbol(current);
             }
         }
@@ -40,59 +41,63 @@ public class Lexer {
         return tokens;
     }
 
+    private void tokenizeWhitespace() {
+        int startColumn = column;
+        while (position < input.length() && Character.isWhitespace(input.charAt(position))) {
+            position++;
+            column++;
+        }
+        tokens.add(new Token(Token.WHITESPACE, null, line, startColumn));
+    }
+
     private void tokenizeNumber() {
         StringBuilder numberLiteral = new StringBuilder();
         int startColumn = column;
-        while (position < input.length() && Character.isDigit(input.charAt(position))) {
-            numberLiteral.append(input.charAt(position++));
+        boolean hasDecimalPoint = false;
+
+        while (position < input.length()) {
+            char currentChar = input.charAt(position);
+
+            if (currentChar == '.' && !hasDecimalPoint) {
+                hasDecimalPoint = true;
+            } else if (!Character.isDigit(currentChar)) {
+                break;
+            }
+
+            numberLiteral.append(currentChar);
+            position++;
             column++;
         }
+
         tokens.add(new Token(Token.NUMBER_LITERAL, numberLiteral.toString(), line, startColumn));
     }
 
-    private void tokenizeStringLiteral(char quote) {
+
+    private void tokenizeStringLiteral(char quote) throws ParseException {
         StringBuilder stringLiteral = new StringBuilder();
         int startColumn = column;
         position++; // skip starting quote
         column++;
 
-        try {
-            while (position < input.length() && input.charAt(position) != quote) {
-                if (input.charAt(position) == '\\') {
-                    handleEscapeCharacter(stringLiteral);
-                } else {
-                    stringLiteral.append(input.charAt(position));
-                    position++;
-                    column++;
-                }
+        while (position < input.length() && input.charAt(position) != quote) {
+            if (input.charAt(position) == '\\') {
+                handleEscapeCharacter(stringLiteral);
+            } else if (input.charAt(position) == '$' && peek(1) == '{') {
+                handleVariableInString(stringLiteral, startColumn);
+            } else {
+                stringLiteral.append(input.charAt(position));
+                position++;
+                column++;
             }
-            position++; // skip ending quote
-            column++;
-
-            if (quote == '\'' && stringLiteral.length() == 1) {
-                tokens.add(new Token(Token.CHAR_LITERAL, stringLiteral.toString(), line, startColumn));
-            } else if (quote == '\'') {
-                throw new ParseException(fileName, "Invalid char literal: " + stringLiteral.toString(), line, startColumn, getCurrentLine());
-            } else if (quote == '\"') {
-                tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
-            }
-        } catch (ParseException e) {
-            System.err.println(e.getFormattedMessage());
         }
-    }
+        position++; // skip ending quote
+        column++;
 
-    private String getCurrentLine() {
-        int start = position;
-        while (start > 0 && input.charAt(start - 1) != '\n') {
-            start--;
+        if (quote == '\'') {
+            tokens.add(new Token(Token.CHAR_LITERAL, stringLiteral.toString(), line, startColumn));
+        } else if (quote == '\"') {
+            tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
         }
-
-        int end = position;
-        while (end < input.length() && input.charAt(end) != '\n') {
-            end++;
-        }
-
-        return input.substring(start, end);
     }
 
     private void handleEscapeCharacter(StringBuilder stringLiteral) {
@@ -202,10 +207,12 @@ public class Lexer {
             case '.' -> {
                 if (peek(1) == '.') { // 다음 문자도 '.'인지 확인
                     tokens.add(new Token(Token.DOT_DOT, null, line, column)); // .. 토큰 추가
-                    position++; // 다음 문자 ('.' )도 스킵
-                    column++;
-                }else {
+                    position += 2; // 다음 문자 ('.' )도 스킵
+                    column += 2;
+                } else { // 다음 문자가 '.' 가 아닌 경우에는 . 토큰 추가
                     tokens.add(new Token(Token.DOT, null, line, column));
+                    position++; // 현재 문자('.') 스킵
+                    column++;
                 }
             }
             case ':' -> tokens.add(new Token(Token.COLON, null, line, column));
@@ -368,7 +375,6 @@ public class Lexer {
         }
 
         line++;
-        column = 1;
     }
 
     private void tokenizeBlockComment() {

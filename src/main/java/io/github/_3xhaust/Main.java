@@ -23,7 +23,7 @@ public class Main {
             if (!fileName.endsWith(".ezy")) throw new IOException("Invalid file extension");
 
             String input = readFile(fileName);
-            Lexer lexer = new Lexer(input, fileName);
+            Lexer lexer = new Lexer(input);
             List<Token> tokens = lexer.tokenize();
 
             Parser parser = new Parser(tokens, fileName, input);

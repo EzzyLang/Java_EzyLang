@@ -6,6 +6,7 @@ import io.github._3xhaust.token.Token;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Parser {
     private final List<Token> tokens;
@@ -19,14 +20,16 @@ public class Parser {
     private final Set<String> declaredVariables = new HashSet<>();
 
     public Parser(List<Token> tokens, String fileName, String input) {
-        this.tokens = tokens;
         this.fileName = fileName;
         this.lines = input.split("\n");
+        this.tokens = tokens.stream()
+                .filter(token1 -> !token1.getToken().equals(Token.WHITESPACE))
+                .collect(Collectors.toList());
 
-        // tokens.forEach(token -> System.out.println(token.getToken()));
     }
 
     public void parse() {
+        tokens.forEach(token -> System.out.println(token.getToken()));
         try {
             while (!isAtEnd()) {
                 statement();
@@ -435,28 +438,24 @@ public class Parser {
         consume(ln ? Token.PRINTLN : Token.PRINT);
 
         consume(Token.LEFT_PAREN);
-        Object result = expression();
+
+        // 여러 표현식을 처리할 수 있도록 루프 추가
+        List<Object> printArgs = new ArrayList<>();
+        while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
+            printArgs.add(expression());
+        }
+
         consume(Token.RIGHT_PAREN);
 
-        String output = (result instanceof String) ? (String) result : String.valueOf(result);
-        System.out.print(ln ? output + "\n" : output);
-    }
-
-    private String evaluateStringExpression() throws ParseException {
-        StringBuilder result = new StringBuilder();
-
-        while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
-            if (currentPosition().getToken().equals(Token.VARIABLE_LITERAL)) {
-                result.append(getVariableValue(consume(Token.VARIABLE_LITERAL).getValue()));
-            } else if (currentPosition().getToken().equals(Token.STRING_LITERAL)) {
-                result.append(consume(Token.STRING_LITERAL).getValue());
-            } else if (currentPosition().getToken().equals(Token.IDENTIFIER)) {
-                result.append(getVariableValue(consume(Token.IDENTIFIER).getValue()));
-            } else {
-                result.append(expression());
-            }
+        // printArgs 리스트에 담긴 값들을 출력
+        for (Object arg : printArgs) {
+            String output = (arg instanceof String) ? (String) arg : String.valueOf(arg);
+            System.out.print(output);
         }
-        return result.toString();
+
+        if (ln) {
+            System.out.println();
+        }
     }
 
     private void ifStatement() throws ParseException {
@@ -578,7 +577,12 @@ public class Parser {
     }
 
     private Character expressionChar() throws ParseException {
-        return consume(Token.CHAR_LITERAL).getValue().charAt(0);
+        String charValue = consume(Token.CHAR_LITERAL).getValue();
+        if (charValue.length() != 1) {
+            throw new ParseException(fileName, "Invalid char literal: " + charValue,
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+        return charValue.charAt(0);
     }
 
     private Object expressionNull() throws ParseException {
@@ -691,6 +695,9 @@ public class Parser {
                     int index = ((BigDecimal) expression()).intValue();
                     consume(Token.RIGHT_BRACKET);
                     yield getVariableValueAtIndex(identifier, index);
+                } else if (currentPosition().getToken().equals(Token.DOT_LENGTH)) { // .length 처리 추가
+                    consume(Token.DOT_LENGTH);
+                    yield getArrayLength(identifier);
                 } else {
                     yield getVariableValue(identifier);
                 }
@@ -888,7 +895,7 @@ public class Parser {
 
     private Token consume(String expectedToken) throws ParseException {
         Token current = currentPosition();
-        if (current.getToken().equals(expectedToken)) {
+        if (current.getToken().equals(expectedToken) || current.getToken().equals(Token.WHITESPACE)) { // WHITESPACE 토큰 무시
             position++;
             return current;
         } else {
