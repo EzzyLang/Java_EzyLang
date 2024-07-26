@@ -83,7 +83,7 @@ public class Token {
     public static final String AS = "as";
 
     // 정의
-    public static final String FUNCTION = "function";
+    public static final String FUNC = "func";
 
     // 루프
     public static final String IN = "in";

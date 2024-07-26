@@ -1,5 +1,6 @@
 package io.github._3xhaust.lexer;
 
+import io.github._3xhaust.exception.ParseException;
 import io.github._3xhaust.token.Token;
 
 import java.util.ArrayList;
@@ -7,16 +8,18 @@ import java.util.List;
 
 public class Lexer {
     private final String input;
+    private final String fileName;
     private final List<Token> tokens = new ArrayList<>();
     private int position = 0;
     private int line = 1;
     private int column = 1;
 
-    public Lexer(String input) {
+    public Lexer(String input, String fileName) {
         this.input = input;
+        this.fileName = fileName;
     }
 
-    public List<Token> tokenize() {
+    public List<Token> tokenize() throws ParseException {
         while (position < input.length()) {
             char current = input.charAt(position);
 
@@ -53,23 +56,43 @@ public class Lexer {
         position++; // skip starting quote
         column++;
 
-        while (position < input.length() && input.charAt(position) != quote) {
-            if (input.charAt(position) == '\\') {
-                handleEscapeCharacter(stringLiteral);
-            } else if (input.charAt(position) == '$' && peek(1) == '{') {
-                handleVariableInString(stringLiteral, startColumn);
-            } else {
-                stringLiteral.append(input.charAt(position));
-                position++;
-                column++;
+        try {
+            while (position < input.length() && input.charAt(position) != quote) {
+                if (input.charAt(position) == '\\') {
+                    handleEscapeCharacter(stringLiteral);
+                } else {
+                    stringLiteral.append(input.charAt(position));
+                    position++;
+                    column++;
+                }
             }
-        }
-        position++; // skip ending quote
-        column++;
+            position++; // skip ending quote
+            column++;
 
-        if (!stringLiteral.isEmpty()) {
-            tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
+            if (quote == '\'' && stringLiteral.length() == 1) {
+                tokens.add(new Token(Token.CHAR_LITERAL, stringLiteral.toString(), line, startColumn));
+            } else if (quote == '\'') {
+                throw new ParseException(fileName, "Invalid char literal: " + stringLiteral.toString(), line, startColumn, getCurrentLine());
+            } else if (quote == '\"') {
+                tokens.add(new Token(Token.STRING_LITERAL, stringLiteral.toString(), line, startColumn));
+            }
+        } catch (ParseException e) {
+            System.err.println(e.getFormattedMessage());
         }
+    }
+
+    private String getCurrentLine() {
+        int start = position;
+        while (start > 0 && input.charAt(start - 1) != '\n') {
+            start--;
+        }
+
+        int end = position;
+        while (end < input.length() && input.charAt(end) != '\n') {
+            end++;
+        }
+
+        return input.substring(start, end);
     }
 
     private void handleEscapeCharacter(StringBuilder stringLiteral) {
@@ -131,7 +154,7 @@ public class Lexer {
             case "else" -> handleElseToken(word, startColumn);
             case "is" -> tokens.add(new Token(Token.IS, word, line, startColumn));
             case "for" -> tokens.add(new Token(Token.FOR, word, line, startColumn));
-            case "func" -> tokens.add(new Token(Token.FUNCTION, word, line, startColumn));
+            case "func" -> tokens.add(new Token(Token.FUNC, word, line, startColumn));
             case "in" -> tokens.add(new Token(Token.IN, word, line, startColumn));
             case "array" -> tokens.add(new Token(Token.ARRAY, word, line, startColumn));
             default -> tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
@@ -318,8 +341,8 @@ public class Lexer {
 
     private void handleNewline() {
         line++;
-        column = 1;
         position++;
+        column = 1;
     }
 
     private char getEscapedCharacter(char escaped) {
@@ -343,6 +366,9 @@ public class Lexer {
             position++;
             column++;
         }
+
+        line++;
+        column = 1;
     }
 
     private void tokenizeBlockComment() {

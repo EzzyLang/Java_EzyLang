@@ -23,7 +23,7 @@ public class Parser {
         this.fileName = fileName;
         this.lines = input.split("\n");
 
-        tokens.forEach(token -> System.out.println(token.getToken()));
+        // tokens.forEach(token -> System.out.println(token.getToken()));
     }
 
     public void parse() {
@@ -90,6 +90,22 @@ public class Parser {
             consume(Token.DOT_LENGTH);
 
             value = getArrayLength(arrayVariable);
+        } else if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.PLUS)) {
+            String firstVariable = consume(Token.IDENTIFIER).getValue();
+            consume(Token.PLUS);
+            String secondVariable = consume(Token.IDENTIFIER).getValue();
+
+            Object firstValue = getVariableValue(firstVariable);
+            Object secondValue = getVariableValue(secondVariable);
+
+            if (firstValue instanceof BigDecimal && secondValue instanceof BigDecimal) {
+                value = ((BigDecimal) firstValue).add((BigDecimal) secondValue);
+            } else if (firstValue instanceof String && secondValue instanceof String) {
+                value = firstValue.toString() + secondValue.toString();
+            } else {
+                throw new ParseException(fileName, "Type mismatch: Cannot add " + firstValue.getClass().getSimpleName() + " and " + secondValue.getClass().getSimpleName(),
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            }
         } else {
             value = getTypedValue(type);
         }
@@ -812,7 +828,9 @@ public class Parser {
                 token.equals(Token.GREATER_THAN) ||
                 token.equals(Token.LESS_THAN) ||
                 token.equals(Token.GREATER_THAN_OR_EQUAL) ||
-                token.equals(Token.LESS_THAN_OR_EQUAL);
+                token.equals(Token.LESS_THAN_OR_EQUAL) ||
+                token.equals(Token.AND) ||
+                token.equals(Token.OR);
     }
 
     private Object evaluateExpressionOperation(Object left, Object right, String operator) throws ParseException {

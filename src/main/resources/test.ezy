@@ -1,31 +1,129 @@
-/*a : number = 10
-println(a * 2)
-println((a*2))*/
+// 변수 선언 및 할당 테스트
+x: number = 10
+y: number = 5
+z: number = x + y
+println("x + y = " + z)
 
-a: number = 10
-println(1+2 * a)
+// 문자열 테스트
+str: string = "Hello, "
+str = str + "World!"
+println(str)
 
-/*arr: number[] = [5, 2, 3, 4, 1]
+// 불리언 테스트
+b1: boolean = true
+b2: boolean = false
+println("b1 AND b2 = " + (b1 && b2))
+println("b1 OR b2 = " + (b1 || b2))
 
-print("정렬 전: ")
-for (beforeSort: number in arr) {
-  print("${beforeSort} ")
+// 문자 테스트
+ch: char = 'AD'
+println("Character: " + ch)
+
+// null 테스트
+n: null = null
+println("n is null: " + (n is null))
+
+// 상수 테스트
+$PI: number = 3.14159
+println("PI: " + $PI)
+
+// 배열 테스트
+arr: number array = [1, 2, 3, 4, 5]
+println("Array length: " + arr.length)
+println("Third element: " + arr[2])
+
+// 배열 요소 변경
+arr[0] = 10
+println("Modified array: " + arr[0] + ", " + arr[1] + ", " + arr[2])
+
+// for 루프 테스트 (배열)
+println("Array elements:")
+for (item: number in arr) {
+    println(item)
 }
 
-n: number = arr.length
-temp: number = 0
-for (i: number in 0 .. n - 2) {
-    for (j: number in 0 .. n - i - 2) {
-        if (arr[j] >= arr[j + 1]) {
-            temp = arr[j]
-            arr[j] = arr[j + 1]
-            arr[j + 1] = temp
-        }
+// for 루프 테스트 (범위)
+println("Range from 1 to 5:")
+for (i: number in 1..5) {
+    println(i)
+}
+
+// for 루프 테스트 (범위와 스텝)
+println("Even numbers from 0 to 10:")
+for (i: number in 0..10..2) {
+    println(i)
+}
+
+// if-else 테스트
+if (x > y) {
+    println("x is greater than y")
+} else if (x < y) {
+    println("x is less than y")
+} else {
+    println("x is equal to y")
+}
+
+// 중첩된 if-else 테스트
+if (x > 0) {
+    if (y > 0) {
+        println("Both x and y are positive")
+    } else {
+        println("x is positive, but y is not")
     }
+} else {
+    println("x is not positive")
 }
 
-print("\n정렬 후: ")
-for (afterSort: number in arr) {
-  print("${afterSort} ")
-}*/
+// 복잡한 수식 테스트
+result: number = (x + y) * 2 - (z / 2)
+println("Complex expression result: " + result)
 
+// 타입 체크 테스트
+println("x is number: " + (x is number))
+println("str is string: " + (str is string))
+println("arr is array: " + (arr is array))
+
+// 문자열 배열 테스트
+strArr: string array = ["apple", "banana", "cherry"]
+println("Fruits:")
+for (fruit: string in strArr) {
+    println(fruit)
+}
+
+// 다차원 배열 테스트
+matrix: number array array = [[1, 2], [3, 4], [5, 6]]
+println("Matrix:")
+for (row: number array in matrix) {
+    for (elem: number in row) {
+        print(elem + " ")
+    }
+    println("")
+}
+
+/* // 함수 같은 기능 테스트 (반복되는 코드 블록)
+println("Testing function-like behavior:")
+func swap(){
+    temp: number = x
+    x = y
+    y = temp
+}
+println("After swap: x = " + x + ", y = " + y) */
+
+// 모든 산술 연산자 테스트
+println("Arithmetic operators:")
+println("Addition: " + (x + y))
+println("Subtraction: " + (x - y))
+println("Multiplication: " + (x * y))
+println("Division: " + (x / y))
+println("Modulus: " + (x % y))
+
+// 모든 비교 연산자 테스트
+println("Comparison operators:")
+println("Equal: " + (x == y))
+println("Not equal: " + (x != y))
+println("Greater than: " + (x > y))
+println("Less than: " + (x < y))
+println("Greater than or equal: " + (x >= y))
+println("Less than or equal: " + (x <= y))
+
+println("All tests completed.")
