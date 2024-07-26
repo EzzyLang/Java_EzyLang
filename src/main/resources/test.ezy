@@ -108,6 +108,17 @@ println("Less than: " + (x < y))
 println("Greater than or equal: " + (x >= y))
 println("Less than or equal: " + (x <= y))
 
+// 함수 같은 기능 테스트 (반복되는 코드 블록)
+println("Testing function-like behavior:")
+func swap(x: number, y: number): void {
+    temp: number = x
+    x = y
+    y = temp
+}
+
+swap(x, y)
+println("After swap: x = " + x + ", y = " + y)
+
 // 다차원 배열 테스트
 matrix: number[][] = [[1, 2], [3, 4], [5, 6]]
 println("Matrix:")
@@ -117,14 +128,5 @@ for (row: number array in matrix) {
     }
     println("")
 }
-
-// 함수 같은 기능 테스트 (반복되는 코드 블록)
-println("Testing function-like behavior:")
-func swap(){
-    temp: number = x
-    x = y
-    y = temp
-}
-println("After swap: x = " + x + ", y = " + y)
 
 println("All tests completed.")

@@ -6,28 +6,41 @@ import io.github._3xhaust.token.Token;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class Parser {
+    private static class FunctionInfo {
+        String name;
+        List<Token> parameters;
+        String returnType;
+        List<Token> body;
+
+        public FunctionInfo(String name, List<Token> parameters, String returnType, List<Token> body) {
+            this.name = name;
+            this.parameters = parameters;
+            this.returnType = returnType;
+            this.body = body;
+        }
+    }
+
+    private final Map<String, FunctionInfo> functions = new HashMap<>();
     private final List<Token> tokens;
     private final String fileName;
     private final String[] lines;
     private int position = 0;
 
-    private final Map<String, Object> variables = new HashMap<>();
+    private final Deque<Map<String, Object>> scopes = new LinkedList<>();
     private final Map<String, String> variableTypes = new HashMap<>();
     private final Set<String> constants = new HashSet<>();
-    private final Set<String> declaredVariables = new HashSet<>();
 
     public Parser(List<Token> tokens, String fileName, String input) {
         this.fileName = fileName;
         this.lines = input.split("\n");
         this.tokens = tokens;
-
+        // 전역 스코프 초기화
+        scopes.push(new HashMap<>());
     }
 
     public void parse() {
-        tokens.forEach(token -> System.out.println(token.getToken()));
         try {
             while (!isAtEnd()) {
                 statement();
@@ -40,8 +53,10 @@ public class Parser {
     private void statement() throws ParseException {
         switch (currentPosition().getToken()) {
             case Token.PRINT, Token.PRINTLN -> printStatement();
+            case Token.FUNC -> functionDeclaration();
             case Token.FOR -> forStatement();
             case Token.IF -> ifStatement();
+            case Token.RETURN -> returnStatement();
             case Token.IDENTIFIER, Token.DOLLAR -> {
                 if (peek(1).getToken().equals(Token.EQUAL) ||
                         peek(1).getToken().equals(Token.LEFT_BRACKET)) {
@@ -54,12 +69,40 @@ public class Parser {
         }
     }
 
+    private void functionDeclaration() throws ParseException {
+        consume(Token.FUNC);
+        String functionName = consume(Token.IDENTIFIER).getValue();
+        consume(Token.LEFT_PAREN);
+
+        List<Token> parameters = new ArrayList<>();
+        while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
+            parameters.add(consume(Token.IDENTIFIER));
+            if (currentPosition().getToken().equals(Token.COMMA)) {
+                consume(Token.COMMA);
+            }
+        }
+        consume(Token.RIGHT_PAREN);
+
+        consume(Token.COLON);
+        String returnType = consume(currentPosition().getToken()).getToken();
+
+        consume(Token.LEFT_BRACE);
+        List<Token> body = new ArrayList<>();
+        while (!currentPosition().getToken().equals(Token.RIGHT_BRACE)) {
+            body.add(currentPosition());
+            position++;
+        }
+        consume(Token.RIGHT_BRACE);
+
+        functions.put(functionName, new FunctionInfo(functionName, parameters, returnType, body));
+    }
+
     private void variableDeclaration() throws ParseException {
         boolean isConstant = currentPosition().getToken().equals(Token.DOLLAR);
         if (isConstant) consume(Token.DOLLAR);
 
         String variableName = consume(Token.IDENTIFIER).getValue();
-        ensureVariableNotDeclared(variableName);
+        ensureVariableNotDeclaredLocal(variableName);
 
         consume(Token.COLON);
         String type = consume(currentPosition().getToken()).getToken();
@@ -75,49 +118,13 @@ public class Parser {
         variableTypes.put(variableName, type);
     }
 
-//    private void declareVariable(String variableName, String type, boolean isConstant) throws ParseException {
-//        Object value;
-//
-//        if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.LEFT_BRACKET)) {
-//            String arrayVariable = consume(Token.IDENTIFIER).getValue();
-//            consume(Token.LEFT_BRACKET);
-//
-//            int index = ((BigDecimal) expression()).intValue();
-//
-//            consume(Token.RIGHT_BRACKET);
-//            value = getVariableValueAtIndex(arrayVariable, index);
-//        } else if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.DOT_LENGTH)) {
-//            String arrayVariable = consume(Token.IDENTIFIER).getValue();
-//            consume(Token.DOT_LENGTH);
-//
-//            value = getArrayLength(arrayVariable);
-//        } else if (currentPosition().getToken().equals(Token.IDENTIFIER) && peek(1).getToken().equals(Token.PLUS)) {
-//            String firstVariable = consume(Token.IDENTIFIER).getValue();
-//            consume(Token.PLUS);
-//            String secondVariable = consume(Token.IDENTIFIER).getValue();
-//
-//            Object firstValue = getVariableValue(firstVariable);
-//            Object secondValue = getVariableValue(secondVariable);
-//
-//            if (firstValue instanceof BigDecimal && secondValue instanceof BigDecimal) {
-//                value = ((BigDecimal) firstValue).add((BigDecimal) secondValue);
-//            } else if (firstValue instanceof String && secondValue instanceof String) {
-//                value = firstValue.toString() + secondValue.toString();
-//            } else {
-//                throw new ParseException(fileName, "Type mismatch: Cannot add " + firstValue.getClass().getSimpleName() + " and " + secondValue.getClass().getSimpleName(),
-//                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-//            }
-//        } else {
-//            value = getTypedValue(type);
-//        }
-//
-//        assignVariable(variableName, value, isConstant);
-//    }
-
     private void declareVariable(String variableName, String type, boolean isConstant) throws ParseException {
-        Object value = getTypedValue(type); // expression() 함수를 통해 값을 가져오도록 수정
+        Object value = getTypedValue(type);
 
-        assignVariable(variableName, value, isConstant);
+        if (isConstant) {
+            constants.add(variableName);
+        }
+        getCurrentScope().put(variableName, value);
     }
 
     private void declareArrayVariable(String variableName, String type, boolean isConstant) throws ParseException {
@@ -132,7 +139,10 @@ public class Parser {
         }
         consume(Token.RIGHT_BRACKET);
 
-        assignVariable(variableName, array, isConstant);
+        if (isConstant) {
+            constants.add(variableName);
+        }
+        getCurrentScope().put(variableName, array);
     }
 
     private Object parseArrayElement(String arrayType) throws ParseException {
@@ -140,17 +150,9 @@ public class Parser {
         return getTypedValue(elementType);
     }
 
-    private void assignVariable(String variableName, Object value, boolean isConstant) {
-        if (isConstant) {
-            constants.add(variableName);
-        }
-        variables.put(variableName, value);
-        declaredVariables.add(variableName);
-    }
-
-    private void ensureVariableNotDeclared(String variableName) throws ParseException {
-        if (declaredVariables.contains(variableName)) {
-            throw new ParseException(fileName, "Variable '" + variableName + "' already declared",
+    private void ensureVariableNotDeclaredLocal(String variableName) throws ParseException {
+        if (getCurrentScope().containsKey(variableName)) {
+            throw new ParseException(fileName, "Variable '" + variableName + "' already declared in this scope",
                     currentPosition().getLine(),
                     currentPosition().getColumn(),
                     getCurrentLine());
@@ -173,10 +175,8 @@ public class Parser {
                         getCurrentLine());
             };
         } else {
-            // 변수 선언 시에도 expression()을 통해 값을 가져오도록 수정
             Object result = expression();
 
-            // 타입 체크 로직 추가
             if ((type.equals(Token.NUMBER) && !(result instanceof BigDecimal)) ||
                     (type.equals(Token.STRING) && !(result instanceof String)) ||
                     (type.equals(Token.BOOLEAN) && !(result instanceof Boolean)) ||
@@ -224,16 +224,10 @@ public class Parser {
 
     private void assignToVariable() throws ParseException {
         String variableName = consume(Token.IDENTIFIER).getValue();
+
         consume(Token.EQUAL);
 
-        if (!variables.containsKey(variableName)) {
-            throw new ParseException(fileName, "Undefined variable: " + variableName,
-                    currentPosition().getLine(),
-                    currentPosition().getColumn(),
-                    getCurrentLine());
-        }
-
-        if (constants.contains(variableName)) {
+        if (isConstantDeclared(variableName)) {
             throw new ParseException(fileName, "Cannot reassign constant variable: " + variableName,
                     currentPosition().getLine(),
                     currentPosition().getColumn(),
@@ -241,11 +235,16 @@ public class Parser {
         }
 
         Object value = expression();
-        variables.put(variableName, value);
+        if (!assignVariableIfDeclared(variableName, value)) {
+            throw new ParseException(fileName, "Undefined variable: " + variableName,
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
+        }
     }
 
     private void assignValueAtIndex(String arrayName, int index, Object value) throws ParseException {
-        Object array = variables.get(arrayName);
+        Object array = getVariableValue(arrayName);
 
         if (array instanceof List<?> arrayList) {
             if (index < 0 || index >= arrayList.size()) {
@@ -286,7 +285,7 @@ public class Parser {
     }
 
     private String getVariableType(String variableName) throws ParseException {
-        if (!this.variables.containsKey(variableName)) {
+        if (!isVariableDeclared(variableName)) {
             throw new ParseException(fileName, "Undefined variable: " + variableName,
                     currentPosition().getLine(),
                     currentPosition().getColumn(),
@@ -319,14 +318,7 @@ public class Parser {
         String arrayVariable = consume(Token.IDENTIFIER).getValue();
         consume(Token.RIGHT_PAREN);
 
-        if (!variables.containsKey(arrayVariable)) {
-            throw new ParseException(fileName, "Undefined variable: " + arrayVariable,
-                    currentPosition().getLine(),
-                    currentPosition().getColumn(),
-                    getCurrentLine());
-        }
-
-        Object arrayObject = variables.get(arrayVariable);
+        Object arrayObject = getVariableValue(arrayVariable);
         if (!(arrayObject instanceof List<?> array)) {
             throw new ParseException(fileName, "Variable '" + arrayVariable + "' is not an array",
                     currentPosition().getLine(),
@@ -334,14 +326,17 @@ public class Parser {
                     getCurrentLine());
         }
 
-        int forLoopStartPosition = position;
+        enterScope(); // for 루프 스코프 시작
 
+        int forLoopStartPosition = position;
         for (Object element : array) {
             position = forLoopStartPosition;
             checkType(element, type);
-            variables.put(variable, element);
+            getCurrentScope().put(variable, element);
             executeForLoopBody();
         }
+
+        exitScope(); // for 루프 스코프 종료
     }
 
     private void iterateOverRange(String variable, String type) throws ParseException {
@@ -363,23 +358,26 @@ public class Parser {
                     getCurrentLine());
         }
 
-        int forLoopStartPosition = position;
+        enterScope(); // for 루프 스코프 시작
 
+        int forLoopStartPosition = position;
         if (step.compareTo(BigDecimal.ZERO) > 0) {
             for (BigDecimal i = start; i.compareTo(end) <= 0; i = i.add(step)) {
                 position = forLoopStartPosition;
                 checkType(i, type);
-                variables.put(variable, i);
+                getCurrentScope().put(variable, i);
                 executeForLoopBody();
             }
         } else {
             for (BigDecimal i = start; i.compareTo(end) >= 0; i = i.add(step)) {
                 position = forLoopStartPosition;
                 checkType(i, type);
-                variables.put(variable, i);
+                getCurrentScope().put(variable, i);
                 executeForLoopBody();
             }
         }
+
+        exitScope(); // for 루프 스코프 종료
     }
 
     private BigDecimal getRangeStart() throws ParseException {
@@ -387,14 +385,7 @@ public class Parser {
             consume(Token.DOT_LENGTH);
             String arrayVariable = consume(Token.IDENTIFIER).getValue();
 
-            if (!variables.containsKey(arrayVariable)) {
-                throw new ParseException(fileName, "Undefined variable: " + arrayVariable,
-                        currentPosition().getLine(),
-                        currentPosition().getColumn(),
-                        getCurrentLine());
-            }
-
-            Object arrayObject = variables.get(arrayVariable);
+            Object arrayObject = getVariableValue(arrayVariable);
             if (!(arrayObject instanceof List)) {
                 throw new ParseException(fileName, "Variable '" + arrayVariable + "' is not an array",
                         currentPosition().getLine(),
@@ -442,15 +433,16 @@ public class Parser {
 
         consume(Token.LEFT_PAREN);
 
-        // 여러 표현식을 처리할 수 있도록 루프 추가
         List<Object> printArgs = new ArrayList<>();
         while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
             printArgs.add(expression());
+            if (currentPosition().getToken().equals(Token.COMMA)) {
+                consume(Token.COMMA);
+            }
         }
 
         consume(Token.RIGHT_PAREN);
 
-        // printArgs 리스트에 담긴 값들을 출력
         for (Object arg : printArgs) {
             String output = (arg instanceof String) ? (String) arg : String.valueOf(arg);
             System.out.print(output);
@@ -462,24 +454,65 @@ public class Parser {
     }
 
     private void ifStatement() throws ParseException {
-        boolean conditionMet = false;
-
         consume(Token.IF);
         consume(Token.LEFT_PAREN);
         boolean condition = evaluateCondition();
         consume(Token.RIGHT_PAREN);
 
         if (condition) {
-            conditionMet = executeConditionalBlock();
+            enterScope();  // if 조건문 스코프 시작
+            executeConditionalBlock();
+            exitScope();  // if 조건문 스코프 종료
         } else {
             skipConditionalBlock();
         }
 
-        handleElseIf(conditionMet);
-        handleElse(conditionMet);
+        handleElseIf(condition);
+        handleElse(condition);
     }
 
-    private boolean executeConditionalBlock() throws ParseException {
+    private void handleElseIf(boolean previousConditionMet) throws ParseException {
+        while (currentPosition().getToken().equals(Token.ELSE_IF)) {
+            consume(Token.ELSE_IF);
+            consume(Token.LEFT_PAREN);
+            boolean condition = evaluateCondition();
+            consume(Token.RIGHT_PAREN);
+
+            if (!previousConditionMet && condition) {
+                enterScope();  // else if 조건문 스코프 시작
+                executeConditionalBlock();
+                exitScope();  // else if 조건문 스코프 종료
+                previousConditionMet = true;
+            } else {
+                skipConditionalBlock();
+            }
+        }
+    }
+
+    private void handleElse(boolean previousConditionMet) throws ParseException {
+        if (currentPosition().getToken().equals(Token.ELSE)) {
+            consume(Token.ELSE);
+
+            if (!previousConditionMet) {
+                enterScope();  // else 블록 스코프 시작
+                executeConditionalBlock();
+                exitScope();  // else 블록 스코프 종료
+            } else {
+                skipConditionalBlock();
+            }
+        }
+    }
+
+
+    private boolean evaluateCondition() throws ParseException {
+        if (currentPosition().getToken().equals(Token.BOOLEAN_LITERAL)) {
+            return Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
+        } else {
+            return evaluateExpression();
+        }
+    }
+
+    private void executeConditionalBlock() throws ParseException {
         if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
             consume(Token.LEFT_BRACE);
             block();
@@ -487,51 +520,22 @@ public class Parser {
         } else {
             statement();
         }
-        return true;
     }
 
-    private void skipConditionalBlock() throws ParseException {
+    private void skipConditionalBlock() {
         if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
-            consume(Token.LEFT_BRACE);
-            skipBlock();
-            consume(Token.RIGHT_BRACE);
+            int braceCount = 1;
+            position++;
+            while (braceCount > 0 && !isAtEnd()) {
+                if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
+                    braceCount++;
+                } else if (currentPosition().getToken().equals(Token.RIGHT_BRACE)) {
+                    braceCount--;
+                }
+                position++;
+            }
         } else {
             skipStatement();
-        }
-    }
-
-    private void handleElseIf(boolean conditionMet) throws ParseException {
-        while (currentPosition().getToken().equals(Token.ELSE_IF)) {
-            consume(Token.ELSE_IF);
-            consume(Token.LEFT_PAREN);
-            boolean condition = evaluateCondition();
-            consume(Token.RIGHT_PAREN);
-
-            if (!conditionMet && condition) {
-                conditionMet = executeConditionalBlock();
-            } else {
-                skipConditionalBlock();
-            }
-        }
-    }
-
-    private void handleElse(boolean conditionMet) throws ParseException {
-        if (currentPosition().getToken().equals(Token.ELSE)) {
-            consume(Token.ELSE);
-
-            if (!conditionMet) {
-                executeConditionalBlock();
-            } else {
-                skipConditionalBlock();
-            }
-        }
-    }
-
-    private boolean evaluateCondition() throws ParseException {
-        if (currentPosition().getToken().equals(Token.BOOLEAN_LITERAL)) {
-            return Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
-        } else {
-            return evaluateExpression();
         }
     }
 
@@ -545,22 +549,19 @@ public class Parser {
     }
 
     private void block() throws ParseException {
+        enterScope();  // 블록 스코프 시작
         while (!currentPosition().getToken().equals(Token.RIGHT_BRACE) && !isAtEnd()) {
             statement();
         }
+        exitScope();  // 블록 스코프 종료
     }
 
-    private void skipBlock() {
-        int braceCount = 1;
-        while (braceCount > 0 && !isAtEnd()) {
-            if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
-                braceCount++;
-            } else if (currentPosition().getToken().equals(Token.RIGHT_BRACE)) {
-                braceCount--;
-            }
-            position++;
-        }
-        position--;
+    private void enterScope() {
+        scopes.push(new HashMap<>());
+    }
+
+    private void exitScope() {
+        scopes.pop();
     }
 
     private boolean isAtEnd() {
@@ -650,22 +651,19 @@ public class Parser {
     }
 
     private Object arithmeticExpression() throws ParseException {
-        Object left = term(); // 먼저 곱셈/나눗셈을 처리
-
+        Object left = term();
         while (currentPosition().getToken().equals(Token.PLUS) ||
                 currentPosition().getToken().equals(Token.MINUS)) {
             String operator = currentPosition().getToken();
             consume(operator);
             Object right = term();
-            left = applyOperator(left, operator, right); // 덧셈/뺄셈 결과를 누적
+            left = applyOperator(left, operator, right);
         }
-
-        return left; // 최종 결과 반환
+        return left;
     }
 
     private Object term() throws ParseException {
         Object left = factor();
-
         while (currentPosition().getToken().equals(Token.ASTERISK) ||
                 currentPosition().getToken().equals(Token.SLASH) ||
                 currentPosition().getToken().equals(Token.PERCENT)) {
@@ -679,7 +677,6 @@ public class Parser {
 
     private Object factor() throws ParseException {
         Token current = currentPosition();
-
         return switch (current.getToken()) {
             case Token.NUMBER_LITERAL -> new BigDecimal(consume(Token.NUMBER_LITERAL).getValue());
             case Token.VARIABLE_LITERAL -> getVariableValue(consume(Token.VARIABLE_LITERAL).getValue());
@@ -692,8 +689,9 @@ public class Parser {
             }
             case Token.IDENTIFIER, Token.DOLLAR -> {
                 String identifier = consumeVariableName(current);
-
-                if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
+                if (currentPosition().getToken().equals(Token.LEFT_PAREN)) {  // 함수 호출
+                    return functionCall(identifier);
+                } else if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
                     consume(Token.LEFT_BRACKET);
                     int index = ((BigDecimal) expression()).intValue();
                     consume(Token.RIGHT_BRACKET);
@@ -707,6 +705,81 @@ public class Parser {
             }
             default -> throw unexpectedTokenException("Unexpected token in factor");
         };
+    }
+
+    private Object functionCall(String functionName) throws ParseException {
+        consume(Token.LEFT_PAREN);
+
+        List<Object> arguments = new ArrayList<>();
+        while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
+            arguments.add(expression());
+            if (currentPosition().getToken().equals(Token.COMMA)) {
+                consume(Token.COMMA);
+            }
+        }
+        consume(Token.RIGHT_PAREN);
+
+        return executeFunction(functionName, arguments);
+    }
+
+    private Object executeFunction(String functionName, List<Object> arguments) throws ParseException {
+        FunctionInfo function = functions.get(functionName);
+        if (function == null) {
+            throw new ParseException(fileName, "Undefined function: " + functionName,
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+
+        if (arguments.size() != function.parameters.size()) {
+            throw new ParseException(fileName, "Incorrect number of arguments passed to function: " + functionName,
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+
+        enterScope(); // 함수 스코프 생성
+        for (int i = 0; i < arguments.size(); i++) {
+            // 함수 매개변수를 현재 스코프에 추가
+            getCurrentScope().put(function.parameters.get(i).getValue(), arguments.get(i));
+        }
+
+        // 함수 바디 실행
+        int returnPosition = position; // 현재 위치 저장
+        position = 0;
+        List<Token> functionBody = new ArrayList<>(function.body);
+        Object returnValue = null;
+
+        try {
+            while (position < functionBody.size()) {
+                Token current = functionBody.get(position);
+                if (current.getToken().equals(Token.RETURN)) {
+                    position++;
+                    returnValue = expression();
+                    break;
+                } else {
+                    statementFromTokens(functionBody);
+                }
+            }
+        } catch (ParseException e) {
+            throw new ParseException(fileName, e.getMessage(), e.getLine(), e.getColumn(), lines[e.getLine() - 1]);
+        } finally {
+            position = returnPosition; // 원래 위치로 복귀
+            exitScope();  // 함수 스코프 종료
+        }
+
+        // 반환 타입 확인
+        if (returnValue == null && !function.returnType.equals(Token.VOID)) {
+            throw new ParseException(fileName, "Function " + functionName + " should return a value of type " + function.returnType,
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+
+        // 반환 값 타입 체크
+        if (returnValue != null) {
+            checkTypeCompatibility(returnValue, function.returnType);
+        }
+
+        return returnValue;
+    }
+    private void statementFromTokens(List<Token> body) throws ParseException {
+        // ... 기존 statement() 메서드와 동일한 로직 ...
+        // 단, currentPosition() 대신 body.get(position) 사용
     }
 
     private Object applyOperator(Object left, String operator, Object right) throws ParseException {
@@ -746,7 +819,7 @@ public class Parser {
     }
 
     private Object getVariableValueAtIndex(String variableName, int index) throws ParseException {
-        Object variable = variables.get(variableName);
+        Object variable = getVariableValue(variableName);
         if (variable instanceof List<?> array) {
             if (index < 0 || index >= array.size()) {
                 throw new ParseException(fileName, "Array index out of bounds: " + index,
@@ -774,13 +847,43 @@ public class Parser {
     }
 
     private Object getVariableValue(String variableName) throws ParseException {
-        if (!variables.containsKey(variableName)) {
-            throw new ParseException(fileName, "Undefined variable: " + variableName,
-                    currentPosition().getLine(),
-                    currentPosition().getColumn(),
-                    getCurrentLine());
+        // Iterate through scopes from the most recent to the global scope
+        Iterator<Map<String, Object>> iterator = scopes.descendingIterator();
+        while (iterator.hasNext()) {
+            Map<String, Object> scope = iterator.next();
+            if (scope.containsKey(variableName)) {
+                return scope.get(variableName);
+            }
         }
-        return variables.get(variableName);
+
+        throw new ParseException(fileName, "Undefined variable: " + variableName,
+                currentPosition().getLine(),
+                currentPosition().getColumn(),
+                getCurrentLine());
+    }
+
+    private boolean isVariableDeclared(String variableName) {
+        for (Map<String, Object> scope : scopes) {
+            if (scope.containsKey(variableName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isConstantDeclared(String variableName) {
+        return constants.contains(variableName);
+    }
+
+    private boolean assignVariableIfDeclared(String variableName, Object value) {
+        for (int i = scopes.size() - 1; i >= 0; i--) {
+            Map<String, Object> scope = scopes.getLast();
+            if (scope.containsKey(variableName)) {
+                scope.put(variableName, value);
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean evaluateExpression() throws ParseException {
@@ -911,6 +1014,10 @@ public class Parser {
 
     private String getCurrentLine() {
         return lines[currentPosition().getLine() - 1];
+    }
+
+    private Map<String, Object> getCurrentScope() {
+        return scopes.peek();
     }
 
     private Token peek(int offset) {
