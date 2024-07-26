@@ -150,6 +150,7 @@ public class Lexer {
             case "is" -> tokens.add(new Token(Token.IS, word, line, startColumn));
             case "for" -> tokens.add(new Token(Token.FOR, word, line, startColumn));
             case "func" -> tokens.add(new Token(Token.FUNC, word, line, startColumn));
+            case "return" -> tokens.add(new Token(Token.RETURN, word, line, startColumn));
             case "in" -> tokens.add(new Token(Token.IN, word, line, startColumn));
             case "array" -> tokens.add(new Token(Token.ARRAY, word, line, startColumn));
             default -> tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));

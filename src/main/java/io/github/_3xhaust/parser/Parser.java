@@ -8,21 +8,32 @@ import java.math.MathContext;
 import java.util.*;
 
 public class Parser {
-    private static class FunctionInfo {
+    private static class Function {
         String name;
-        List<Token> parameters;
+        List<Parameter> parameters;
         String returnType;
-        List<Token> body;
+        int bodyStart;
+        int bodyEnd;
 
-        public FunctionInfo(String name, List<Token> parameters, String returnType, List<Token> body) {
+        Function(String name, List<Parameter> parameters, String returnType, int bodyStart, int bodyEnd) {
             this.name = name;
             this.parameters = parameters;
             this.returnType = returnType;
-            this.body = body;
+            this.bodyStart = bodyStart;
+            this.bodyEnd = bodyEnd;
         }
     }
 
-    private final Map<String, FunctionInfo> functions = new HashMap<>();
+    private static class Parameter {
+        String name;
+        String type;
+
+        Parameter(String name, String type) {
+            this.name = name;
+            this.type = type;
+        }
+    }
+
     private final List<Token> tokens;
     private final String fileName;
     private final String[] lines;
@@ -30,6 +41,7 @@ public class Parser {
 
     private final Deque<Map<String, Object>> scopes = new LinkedList<>();
     private final Map<String, String> variableTypes = new HashMap<>();
+    private final Map<String, Function> functions = new HashMap<>();
     private final Set<String> constants = new HashSet<>();
 
     public Parser(List<Token> tokens, String fileName, String input) {
@@ -38,6 +50,7 @@ public class Parser {
         this.tokens = tokens;
         // 전역 스코프 초기화
         scopes.push(new HashMap<>());
+        tokens.forEach(token -> System.out.println(token.getToken()));
     }
 
     public void parse() {
@@ -53,12 +66,13 @@ public class Parser {
     private void statement() throws ParseException {
         switch (currentPosition().getToken()) {
             case Token.PRINT, Token.PRINTLN -> printStatement();
-            case Token.FUNC -> functionDeclaration();
             case Token.FOR -> forStatement();
             case Token.IF -> ifStatement();
-            case Token.RETURN -> returnStatement();
+            case Token.FUNC -> functionDeclaration();
             case Token.IDENTIFIER, Token.DOLLAR -> {
-                if (peek(1).getToken().equals(Token.EQUAL) ||
+                if (peek(1).getToken().equals(Token.LEFT_PAREN)) {
+                    functionCall(consume(Token.IDENTIFIER).getValue());
+                } else if (peek(1).getToken().equals(Token.EQUAL) ||
                         peek(1).getToken().equals(Token.LEFT_BRACKET)) {
                     variableAssignment();
                 } else {
@@ -66,7 +80,19 @@ public class Parser {
                 }
             }
             default -> throw unexpectedTokenException("Invalid start of statement");
+
         }
+    }
+
+    private static final Set<String> VALID_TYPES = new HashSet<>(Arrays.asList(
+            Token.NUMBER, Token.CHAR, Token.STRING, Token.BOOLEAN,
+            Token.NUMBER_ARRAY, Token.CHAR_ARRAY, Token.STRING_ARRAY, Token.BOOLEAN_ARRAY,
+            Token.ARRAY, Token.NULL
+    ));
+
+    private static final Set<String> VALID_RETURN_TYPES = new HashSet<>(VALID_TYPES);
+    static {
+        VALID_RETURN_TYPES.add(Token.VOID);
     }
 
     private void functionDeclaration() throws ParseException {
@@ -74,27 +100,113 @@ public class Parser {
         String functionName = consume(Token.IDENTIFIER).getValue();
         consume(Token.LEFT_PAREN);
 
-        List<Token> parameters = new ArrayList<>();
+        List<Parameter> parameters = new ArrayList<>();
         while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
-            parameters.add(consume(Token.IDENTIFIER));
+            String paramName = consume(Token.IDENTIFIER).getValue();
+            consume(Token.COLON);
+            String paramType = consume(currentPosition().getToken()).getToken();
+
+            if(isVariableDeclared(paramName)) {
+                throw new ParseException(fileName, "Variable '" + paramName + "' already declared in this scope",
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            }
+            if (!VALID_TYPES.contains(paramType)) {
+                throw new ParseException(fileName, "Invalid parameter type: " + paramType,
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            }
+            parameters.add(new Parameter(paramName, paramType));
+
             if (currentPosition().getToken().equals(Token.COMMA)) {
                 consume(Token.COMMA);
             }
         }
         consume(Token.RIGHT_PAREN);
 
-        consume(Token.COLON);
-        String returnType = consume(currentPosition().getToken()).getToken();
+        String returnType = peek(1).getToken();
+        if (currentPosition().getToken().equals(Token.COLON)) {
+            consume(Token.COLON);
+            returnType = consume(currentPosition().getToken()).getValue();
+            if (!VALID_RETURN_TYPES.contains(returnType)) {
+                throw new ParseException(fileName, "Invalid return type: " + returnType,
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            }
+        }
 
         consume(Token.LEFT_BRACE);
-        List<Token> body = new ArrayList<>();
-        while (!currentPosition().getToken().equals(Token.RIGHT_BRACE)) {
-            body.add(currentPosition());
+        int functionBodyStart = position;
+
+        int braceCount = 1;
+        while (braceCount > 0 && !isAtEnd()) {
+            if (currentPosition().getToken().equals(Token.RIGHT_BRACE)) {
+                braceCount--;
+            }
             position++;
         }
-        consume(Token.RIGHT_BRACE);
 
-        functions.put(functionName, new FunctionInfo(functionName, parameters, returnType, body));
+        if (braceCount > 0) {
+            throw new ParseException(fileName, "Unclosed function body",
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+
+        int functionBodyEnd = position - 1;
+
+        functions.put(functionName, new Function(functionName, parameters, returnType, functionBodyStart, functionBodyEnd));
+    }
+
+    private Object functionCall(String functionName) throws ParseException {
+        consume(Token.LEFT_PAREN);
+        List<Object> arguments = new ArrayList<>();
+        if (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
+            do {
+                arguments.add(expression());
+                if (currentPosition().getToken().equals(Token.COMMA)) {
+                    consume(Token.COMMA);
+                } else break;
+            } while (true);
+        }
+        consume(Token.RIGHT_PAREN);
+
+        Function function = functions.get(functionName);
+        if (function == null) {
+            throw new ParseException(fileName, "Undefined function: " + functionName,
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+
+        if (arguments.size() != function.parameters.size()) {
+            throw new ParseException(fileName,
+                    "Function " + functionName + " expects " + function.parameters.size() +
+                            " arguments, but got " + arguments.size(),
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+
+        return executeFunctionBody(function, arguments);
+    }
+
+    private Object executeFunctionBody(Function function, List<Object> arguments) throws ParseException {
+        enterScope();
+
+        for (int i = 0; i < function.parameters.size(); i++) {
+            Parameter param = function.parameters.get(i);
+            getCurrentScope().put(param.name, arguments.get(i));
+        }
+
+        int savedPosition = position;
+        position = function.bodyStart;
+
+        Object returnValue = null;
+        while (position < function.bodyEnd) {
+            if (currentPosition().getToken().equals(Token.RETURN)) {
+                consume(Token.RETURN);
+                returnValue = expression();
+                break;
+            }
+            statement();
+        }
+
+        exitScope();
+        position = savedPosition;
+
+        return returnValue;
     }
 
     private void variableDeclaration() throws ParseException {
@@ -121,9 +233,8 @@ public class Parser {
     private void declareVariable(String variableName, String type, boolean isConstant) throws ParseException {
         Object value = getTypedValue(type);
 
-        if (isConstant) {
-            constants.add(variableName);
-        }
+        if (isConstant) constants.add(variableName);
+
         getCurrentScope().put(variableName, value);
     }
 
@@ -689,8 +800,9 @@ public class Parser {
             }
             case Token.IDENTIFIER, Token.DOLLAR -> {
                 String identifier = consumeVariableName(current);
-                if (currentPosition().getToken().equals(Token.LEFT_PAREN)) {  // 함수 호출
-                    return functionCall(identifier);
+                if (currentPosition().getToken().equals(Token.LEFT_PAREN)) {
+                    // 함수 호출 처리
+                    yield functionCall(identifier);
                 } else if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
                     consume(Token.LEFT_BRACKET);
                     int index = ((BigDecimal) expression()).intValue();
@@ -705,81 +817,6 @@ public class Parser {
             }
             default -> throw unexpectedTokenException("Unexpected token in factor");
         };
-    }
-
-    private Object functionCall(String functionName) throws ParseException {
-        consume(Token.LEFT_PAREN);
-
-        List<Object> arguments = new ArrayList<>();
-        while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
-            arguments.add(expression());
-            if (currentPosition().getToken().equals(Token.COMMA)) {
-                consume(Token.COMMA);
-            }
-        }
-        consume(Token.RIGHT_PAREN);
-
-        return executeFunction(functionName, arguments);
-    }
-
-    private Object executeFunction(String functionName, List<Object> arguments) throws ParseException {
-        FunctionInfo function = functions.get(functionName);
-        if (function == null) {
-            throw new ParseException(fileName, "Undefined function: " + functionName,
-                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-        }
-
-        if (arguments.size() != function.parameters.size()) {
-            throw new ParseException(fileName, "Incorrect number of arguments passed to function: " + functionName,
-                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-        }
-
-        enterScope(); // 함수 스코프 생성
-        for (int i = 0; i < arguments.size(); i++) {
-            // 함수 매개변수를 현재 스코프에 추가
-            getCurrentScope().put(function.parameters.get(i).getValue(), arguments.get(i));
-        }
-
-        // 함수 바디 실행
-        int returnPosition = position; // 현재 위치 저장
-        position = 0;
-        List<Token> functionBody = new ArrayList<>(function.body);
-        Object returnValue = null;
-
-        try {
-            while (position < functionBody.size()) {
-                Token current = functionBody.get(position);
-                if (current.getToken().equals(Token.RETURN)) {
-                    position++;
-                    returnValue = expression();
-                    break;
-                } else {
-                    statementFromTokens(functionBody);
-                }
-            }
-        } catch (ParseException e) {
-            throw new ParseException(fileName, e.getMessage(), e.getLine(), e.getColumn(), lines[e.getLine() - 1]);
-        } finally {
-            position = returnPosition; // 원래 위치로 복귀
-            exitScope();  // 함수 스코프 종료
-        }
-
-        // 반환 타입 확인
-        if (returnValue == null && !function.returnType.equals(Token.VOID)) {
-            throw new ParseException(fileName, "Function " + functionName + " should return a value of type " + function.returnType,
-                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-        }
-
-        // 반환 값 타입 체크
-        if (returnValue != null) {
-            checkTypeCompatibility(returnValue, function.returnType);
-        }
-
-        return returnValue;
-    }
-    private void statementFromTokens(List<Token> body) throws ParseException {
-        // ... 기존 statement() 메서드와 동일한 로직 ...
-        // 단, currentPosition() 대신 body.get(position) 사용
     }
 
     private Object applyOperator(Object left, String operator, Object right) throws ParseException {
@@ -858,7 +895,7 @@ public class Parser {
 
         throw new ParseException(fileName, "Undefined variable: " + variableName,
                 currentPosition().getLine(),
-                currentPosition().getColumn(),
+                currentPosition().getColumn() ,
                 getCurrentLine());
     }
 
