@@ -128,16 +128,16 @@ println("Result of applyOperation with add: " + applyOperation(10, 20, add))
 */
 
 // TODO: 16. 중첩 함수 호출 테스트
-/*
-func outer(x1: number): number {
-    func inner(y1: number): number {
-        return y1 * 2
+
+func outer(x: number): number {
+    func inner(y: number): number {
+        return y * 2
     }
     return inner(x) + 5
 }
 
 println("Result of outer(10): " + outer(10))
-*/
+
 
 // 17. 스코프 테스트
 globalVar: number = 100
