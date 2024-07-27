@@ -66,7 +66,7 @@ for (i: number in 1..5) {
 
 // 10. 배열 테스트
 arr: number[] = [1, 2, 3, 4, 5]
-println("Array length: " + arr.length)
+println("Array length: " + arr.length())
 println("Third element: " + arr[2])
 
 // 배열 요소 변경
@@ -93,8 +93,8 @@ for (row: number[] in matrix) {
 */
 
 // 12. 함수 선언 및 호출 테스트
-func add(num1: number, num2: number): number {
-    return num1 + num2
+func add(x: number, y: number): number {
+    return x + y
 }
 
 result: number = add(5, 3)

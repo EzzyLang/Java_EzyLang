@@ -155,14 +155,6 @@ public class Lexer {
             case "array" -> tokens.add(new Token(Token.ARRAY, word, line, startColumn));
             default -> tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
         }
-
-        if (position < input.length() && input.charAt(position) == '.' &&
-                input.substring(position, Math.min(position + 7, input.length())).equals(".length")) {
-            word += ".length";
-            position += 7; // '.length' 스킵
-            column += 7;
-            tokens.add(new Token(Token.DOT_LENGTH, word, line, startColumn)); // DOT_LENGTH 토큰 추가
-        }
     }
 
 
