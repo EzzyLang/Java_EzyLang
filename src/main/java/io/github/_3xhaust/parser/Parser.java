@@ -185,6 +185,20 @@ public class Parser {
                         currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
             return list.remove(index);
         });
+
+        // Register the 'clear' function for ArrayLists
+        registerBuiltinFunction("clear", ArrayList.class, (context, args) -> {
+            validateArguments("clear", args, 1, List.class);
+            ((List<Object>) args.get(0)).clear();
+            return null;
+        });
+
+        // Register the 'addAll' function for ArrayLists
+        registerBuiltinFunction("addAll", ArrayList.class, (context, args) -> {
+            validateArguments("addAll", args, 2, List.class, List.class);
+            return ((List<Object>) args.get(0)).addAll((List<Object>) args.get(1));
+        });
+
     }
 
     /**
@@ -198,8 +212,8 @@ public class Parser {
      */
     private void validateArguments(String functionName, List<Object> args, int expectedCount, Class<?>... expectedTypes) throws ParseException {
         if (args.size() != expectedCount) {
-            throw new ParseException(fileName, functionName + "() expects " + (expectedCount - 1)+
-                    " argument" + (expectedCount > 1 ? "s" : "") + ", but got " + (args.size() - 1),
+            throw new ParseException(fileName, functionName + "() expects " + (expectedCount)+
+                    " argument" + (expectedCount > 1 ? "s" : "") + ", but got " + (args.size()),
                     currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
         }
         for (int i = 0; i < expectedCount; i++) {

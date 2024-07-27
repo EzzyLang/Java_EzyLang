@@ -1,6 +1,7 @@
 asdf: number[] = [1, 2, 3, 4, 5]
-asdf.remove(0)
-println("Array length: " + asdf)
+asdfg: number[] = [1, 2, 3, 4, 5]
+asdf.addAll(asdfg)
+println(asdf)
 
 // 1. 변수 선언 및 기본 데이터 타입 테스트
 num: number = 10
