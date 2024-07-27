@@ -81,7 +81,6 @@ for (item: number in arr) {
 println()
 
 // TODO: 11. 다차원 배열 테스트
-/*
 matrix: number[][] = [[1, 2], [3, 4], [5, 6]]
 println("Matrix:")
 for (row: number[] in matrix) {
@@ -90,7 +89,7 @@ for (row: number[] in matrix) {
     }
     println()
 }
-*/
+
 
 // 12. 함수 선언 및 호출 테스트
 func add(x: number, y: number): number {
@@ -108,7 +107,6 @@ func printInfo(name: string, age: number): void {
 printInfo("Alice", 30)
 
 //TODO: 14. 재귀 함수 테스트
-/*
 func factorial(n1: number): number {
     if (n1 <= 1) {
         return 1
@@ -116,7 +114,7 @@ func factorial(n1: number): number {
     return n1 * factorial(n1 - 1)
 }
 println("Factorial of 5: " + factorial(5))
-*/
+
 
 // TODO: 15. 함수를 인자로 전달하는 테스트 (고차 함수)
 /*

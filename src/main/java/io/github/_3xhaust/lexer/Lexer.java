@@ -132,10 +132,10 @@ public class Lexer {
         }
         String word = sb.toString();
 
-        if (position < input.length() && input.charAt(position) == '[' && peek(1) == ']') {
-            word += " array";
-            position += 2; // '[]' 스킵
-            column += 2;
+        int arrayDimension = checkArrayDimension();
+
+        if (arrayDimension > 0) {
+            word += " array".repeat(arrayDimension);
             tokens.add(new Token(word.toLowerCase(), word, line, startColumn));
             return;
         }
@@ -155,6 +155,29 @@ public class Lexer {
             case "array" -> tokens.add(new Token(Token.ARRAY, word, line, startColumn));
             default -> tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
         }
+    }
+
+    private int checkArrayDimension() {
+        int dimension = 0;
+        int tempPosition = position;
+        int tempColumn = column;
+
+        while (tempPosition < input.length() && input.charAt(tempPosition) == '[') {
+            if (peek(tempPosition - position + 1) == ']') {
+                dimension++;
+                tempPosition += 2;
+                tempColumn += 2;
+            } else {
+                break;
+            }
+        }
+
+        if (dimension > 0) {
+            position = tempPosition;
+            column = tempColumn;
+        }
+
+        return dimension;
     }
 
 

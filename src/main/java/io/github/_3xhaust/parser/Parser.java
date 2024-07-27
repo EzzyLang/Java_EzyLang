@@ -49,6 +49,17 @@ public class Parser {
     private final Map<String, BuiltinFunction> builtinFunctions = new HashMap<>();
     private final Set<String> constants = new HashSet<>();
 
+    private static final Set<String> VALID_TYPES = new HashSet<>(Arrays.asList(
+            Token.NUMBER, Token.CHAR, Token.STRING, Token.BOOLEAN,
+            "number array", "char array", "string array", "boolean array",
+            Token.ARRAY, Token.NULL
+    ));
+
+    private static final Set<String> VALID_RETURN_TYPES = new HashSet<>(VALID_TYPES);
+    static {
+        VALID_RETURN_TYPES.add(Token.VOID);
+    }
+
     public Parser(List<Token> tokens, String fileName, String input) throws ParseException {
         this.fileName = fileName;
         this.lines = input.split("\n");
@@ -101,17 +112,6 @@ public class Parser {
                         currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
             return list.get(index);
         });
-    }
-
-    private static final Set<String> VALID_TYPES = new HashSet<>(Arrays.asList(
-            Token.NUMBER, Token.CHAR, Token.STRING, Token.BOOLEAN,
-            Token.NUMBER_ARRAY, Token.CHAR_ARRAY, Token.STRING_ARRAY, Token.BOOLEAN_ARRAY,
-            Token.ARRAY, Token.NULL
-    ));
-
-    private static final Set<String> VALID_RETURN_TYPES = new HashSet<>(VALID_TYPES);
-    static {
-        VALID_RETURN_TYPES.add(Token.VOID);
     }
 
     public void parse() {
@@ -331,17 +331,30 @@ public class Parser {
         ensureVariableNotDeclaredLocal(variableName);
 
         consume(Token.COLON);
-        String type = consume(currentPosition().getToken()).getToken();
+        String type = parseType();  // 새로운 메서드를 사용
 
         consume(Token.EQUAL);
 
-        if (type.contains("array")) {
+        if (type.endsWith("array")) {
             declareArrayVariable(variableName, type, isConstant);
         } else {
             declareVariable(variableName, type, isConstant);
         }
 
         variableTypes.put(variableName, type);
+    }
+
+    private String parseType() throws ParseException {
+        String baseType = consume(currentPosition().getToken()).getToken();
+        StringBuilder fullType = new StringBuilder(baseType);
+
+        while (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
+            consume(Token.LEFT_BRACKET);
+            consume(Token.RIGHT_BRACKET);
+            fullType.append(" array");
+        }
+
+        return fullType.toString();
     }
 
     private void declareVariable(String variableName, String type, boolean isConstant) throws ParseException {
@@ -355,19 +368,31 @@ public class Parser {
     private void declareArrayVariable(String variableName, String type, boolean isConstant) throws ParseException {
         consume(Token.LEFT_BRACKET);
 
-        List<Object> array = new ArrayList<>();
-        while (!currentPosition().getToken().equals(Token.RIGHT_BRACKET)) {
-            array.add(parseArrayElement(type));
-            if (currentPosition().getToken().equals(Token.COMMA)) {
-                consume(Token.COMMA);
-            }
-        }
+        List<Object> array = parseMultiDimensionalArray(type);
+
         consume(Token.RIGHT_BRACKET);
 
         if (isConstant) {
             constants.add(variableName);
         }
         getCurrentScope().put(variableName, array);
+    }
+
+    private List<Object> parseMultiDimensionalArray(String type) throws ParseException {
+        List<Object> array = new ArrayList<>();
+        while (!currentPosition().getToken().equals(Token.RIGHT_BRACKET)) {
+            if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
+                consume(Token.LEFT_BRACKET);
+                array.add(parseMultiDimensionalArray(type.replace(" array", "")));
+                consume(Token.RIGHT_BRACKET);
+            } else {
+                array.add(parseArrayElement(type.replace(" array", "")));
+            }
+            if (currentPosition().getToken().equals(Token.COMMA)) {
+                consume(Token.COMMA);
+            }
+        }
+        return array;
     }
 
     private Object parseArrayElement(String arrayType) throws ParseException {
@@ -437,14 +462,48 @@ public class Parser {
 
     private void assignToArrayElement() throws ParseException {
         String arrayName = consume(Token.IDENTIFIER).getValue();
-        consume(Token.LEFT_BRACKET);
-        int index = ((BigDecimal) expression()).intValue();
-        consume(Token.RIGHT_BRACKET);
+        List<Integer> indices = new ArrayList<>();
+
+        while (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
+            consume(Token.LEFT_BRACKET);
+            indices.add(((BigDecimal) expression()).intValue());
+            consume(Token.RIGHT_BRACKET);
+        }
 
         consume(Token.EQUAL);
 
         Object value = expression();
-        assignValueAtIndex(arrayName, index, value);
+        assignValueAtIndices(arrayName, indices, value);
+    }
+
+    private void assignValueAtIndices(String arrayName, List<Integer> indices, Object value) throws ParseException {
+        Object array = getVariableValue(arrayName);
+        setValueAtIndices(array, indices, 0, value);
+    }
+
+    private void setValueAtIndices(Object array, List<Integer> indices, int depth, Object value) throws ParseException {
+        if (!(array instanceof List)) {
+            throw new ParseException(fileName, "Trying to access non-array element as array",
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
+        }
+
+        List<Object> list = (List<Object>) array;
+        int index = indices.get(depth);
+
+        if (index < 0 || index >= list.size()) {
+            throw new ParseException(fileName, "Array index out of bounds: " + index,
+                    currentPosition().getLine(),
+                    currentPosition().getColumn(),
+                    getCurrentLine());
+        }
+
+        if (depth == indices.size() - 1) {
+            list.set(index, value);
+        } else {
+            setValueAtIndices(list.get(index), indices, depth + 1, value);
+        }
     }
 
     private void assignToVariable() throws ParseException {
@@ -551,17 +610,17 @@ public class Parser {
                     getCurrentLine());
         }
 
-        enterScope(); // for 루프 스코프 시작
+        enterScope();
 
         int forLoopStartPosition = position;
         for (Object element : array) {
             position = forLoopStartPosition;
-            checkType(element, type);
+
             getCurrentScope().put(variable, element);
             executeForLoopBody();
         }
 
-        exitScope(); // for 루프 스코프 종료
+        exitScope();
     }
 
     private void iterateOverRange(String variable, String type) throws ParseException {
@@ -625,20 +684,30 @@ public class Parser {
     }
 
     private void checkType(Object value, String type) throws ParseException {
-        boolean isValidType = switch (type) {
-            case Token.NUMBER -> value instanceof BigDecimal;
-            case Token.STRING -> value instanceof String;
-            case Token.BOOLEAN -> value instanceof Boolean;
-            case Token.CHAR -> value instanceof Character;
-            case Token.NULL -> value == null;
-            default -> false;
-        };
+        if (type.endsWith(" array")) { // 배열 타입인 경우
+            if (!(value instanceof List<?>)) {
+                throw new ParseException(fileName, "Type mismatch: Expected " + type + ", found " + value.getClass().getSimpleName(),
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            }
 
-        if (!isValidType) {
-            throw new ParseException(fileName, "Type mismatch: Expected " + type + ", found " + value.getClass().getSimpleName(),
-                    currentPosition().getLine(),
-                    currentPosition().getColumn(),
-                    getCurrentLine());
+            String elementType = type.substring(0, type.length() - " array".length()); // 요소 타입 추출
+            for (Object element : (List<?>) value) {
+                checkType(element, elementType); // 재귀적으로 요소 타입 확인
+            }
+        } else { // 기본 타입인 경우
+            boolean isValidType = switch (type) {
+                case Token.NUMBER -> value instanceof BigDecimal;
+                case Token.STRING -> value instanceof String;
+                case Token.BOOLEAN -> value instanceof Boolean;
+                case Token.CHAR -> value instanceof Character;
+                case Token.NULL -> value == null;
+                default -> false;
+            };
+
+            if (!isValidType) {
+                throw new ParseException(fileName, "Type mismatch: Expected " + type + ", found " + value.getClass().getSimpleName(),
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            }
         }
     }
 
@@ -935,11 +1004,13 @@ public class Parser {
                     yield builtinFunctions.get(methodName).execute(args);
 
                 }  else if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
-                    consume(Token.LEFT_BRACKET);
-                    int index = ((BigDecimal) expression()).intValue();
-                    consume(Token.RIGHT_BRACKET);
-                    yield getVariableValueAtIndex(identifier, index);
-
+                    List<Integer> indices = new ArrayList<>();
+                    while (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
+                        consume(Token.LEFT_BRACKET);
+                        indices.add(((BigDecimal) expression()).intValue());
+                        consume(Token.RIGHT_BRACKET);
+                    }
+                    yield getVariableValueAtIndex(identifier, indices);
                 } else {
                     for (Map<String, Object> scope : scopes) {
                         if (scope.containsKey(identifier)) {
@@ -979,18 +1050,27 @@ public class Parser {
         }
     }
 
-    private Object getVariableValueAtIndex(String variableName, int index) throws ParseException {
+    private Object getVariableValueAtIndex(String variableName, List<Integer> indices) throws ParseException {
         Object variable = getVariableValue(variableName);
-        if (variable instanceof List<?> array) {
-            if (index < 0 || index >= array.size()) {
+        return getValueAtIndices(variable, indices, 0);
+    }
+
+    private Object getValueAtIndices(Object array, List<Integer> indices, int depth) throws ParseException {
+        if (depth == indices.size()) {
+            return array;
+        }
+        if (array instanceof List<?>) {
+            List<?> list = (List<?>) array;
+            int index = indices.get(depth);
+            if (index < 0 || index >= list.size()) {
                 throw new ParseException(fileName, "Array index out of bounds: " + index,
                         currentPosition().getLine(),
                         currentPosition().getColumn(),
                         getCurrentLine());
             }
-            return array.get(index);
+            return getValueAtIndices(list.get(index), indices, depth + 1);
         } else {
-            throw new ParseException(fileName, "Variable '" + variableName + "' is not an array",
+            throw new ParseException(fileName, "Trying to access non-array element as array",
                     currentPosition().getLine(),
                     currentPosition().getColumn(),
                     getCurrentLine());
