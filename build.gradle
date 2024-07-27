@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'io.github._3xhaust'
-version = '1.16-beta'
+version = '1.17-beta'
 
 repositories {
     mavenCentral()

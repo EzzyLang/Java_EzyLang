@@ -112,6 +112,14 @@ public class Parser {
                         currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
             return list.get(index);
         });
+
+        builtinFunctions.put("repeat", args -> {
+            if (args.size() != 2 || !(args.get(0) instanceof String) || !(args.get(1) instanceof BigDecimal))
+                throw new ParseException(fileName, "repeat() can only be called on strings",
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            int count = ((BigDecimal) args.get(1)).intValue();
+            return String.valueOf(args.get(0)).repeat(count);
+        });
     }
 
     public void parse() {
@@ -975,12 +983,29 @@ public class Parser {
             case Token.NUMBER_LITERAL -> new BigDecimal(consume(Token.NUMBER_LITERAL).getValue());
             case Token.VARIABLE_LITERAL -> getVariableValue(consume(Token.VARIABLE_LITERAL).getValue());
             case Token.BOOLEAN_LITERAL -> Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
-            case Token.STRING_LITERAL -> consume(Token.STRING_LITERAL).getValue();
             case Token.LEFT_PAREN -> {
                 consume(Token.LEFT_PAREN);
                 Object result = expression();
                 consume(Token.RIGHT_PAREN);
                 yield result;
+            }
+            case Token.STRING_LITERAL -> {
+                String literal = consume(Token.STRING_LITERAL).getValue();
+                if (currentPosition().getToken().equals(Token.DOT)) {
+                    consume(Token.DOT);
+                    String methodName = consume(Token.IDENTIFIER).getValue();
+                    if (methodName.equals("repeat") && currentPosition().getToken().equals(Token.LEFT_PAREN)) {
+                        consume(Token.LEFT_PAREN);
+                        BigDecimal count = expressionNumber();
+                        consume(Token.RIGHT_PAREN);
+                        yield literal.repeat(count.intValue());
+                    } else {
+                        throw new ParseException(fileName, "Unsupported method call on string literal",
+                                currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+                    }
+                } else {
+                    yield literal;
+                }
             }
             case Token.IDENTIFIER, Token.DOLLAR -> {
                 String identifier = consumeVariableName(current);
@@ -990,6 +1015,21 @@ public class Parser {
                 } else if (currentPosition().getToken().equals(Token.DOT)) {
                     consume(Token.DOT);
                     String methodName = consume(Token.IDENTIFIER).getValue();
+
+                    if (methodName.equals("repeat") && currentPosition().getToken().equals(Token.LEFT_PAREN)) {
+                        consume(Token.LEFT_PAREN);
+                        BigDecimal count = expressionNumber();
+                        consume(Token.RIGHT_PAREN);
+
+                        Object value = getVariableValue(identifier);
+                        if (!(value instanceof String)) {
+                            throw new ParseException(fileName, "repeat() can only be called on strings",
+                                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+                        }
+
+                        yield builtinFunctions.get(methodName).execute(List.of(value, count));
+                    }
+
                     Object array = getVariableValue(identifier);
                     if (!(array instanceof List)) {
                         throw new ParseException(fileName, "Cannot call method on non-array variable",
