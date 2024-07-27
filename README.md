@@ -19,7 +19,7 @@ for (i: number in arr) {
 }
 
 func sort(arr: number[]): void {
-    n: number = arr.length
+    n: number = arr.length()
     for (i: number in 0 .. n - 2) {
         for (j: number in 0 .. n - i - 2) {
             if (arr[j] >= arr[j + 1]) {
