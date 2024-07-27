@@ -1,3 +1,7 @@
+asdf: number[] = [1, 2]
+asdf.set(3, 2)
+println(asdf)
+
 // 1. 변수 선언 및 기본 데이터 타입 테스트
 num: number = 10
 str: string = "Hello, EZY!"
@@ -66,7 +70,7 @@ for (i: number in 1..5) {
 
 // 10. 배열 테스트
 arr: number[] = [1, 2, 3, 4, 5]
-println("Array length: " + arr.length())
+println("Array length: " + arr.length)
 println("Third element: " + arr[2])
 
 // 배열 요소 변경
@@ -90,7 +94,6 @@ for (row: number[] in matrix) {
     println()
 }
 
-
 // 12. 함수 선언 및 호출 테스트
 func add(x: number, y: number): number {
     return x + y
@@ -108,9 +111,8 @@ printInfo("Alice", 30)
 
 //TODO: 14. 재귀 함수 테스트
 func factorial(n1: number): number {
-    if (n1 <= 1) {
-        return 1
-    }
+    if (n1 <= 1) {return 1}
+
     return n1 * factorial(n1 - 1)
 }
 println("Factorial of 5: " + factorial(5))
@@ -126,13 +128,14 @@ println("Result of applyOperation with add: " + applyOperation(10, 20, add))
 */
 
 // TODO: 16. 중첩 함수 호출 테스트
-
+/*
 func outer(x: number): number {
     func inner(y: number): number {
         return y * 2
     }
     return inner(x) + 5
 }
+*/
 
 println("Result of outer(10): " + outer(10))
 

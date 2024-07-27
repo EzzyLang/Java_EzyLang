@@ -8,8 +8,21 @@ import java.math.MathContext;
 import java.util.*;
 
 public class Parser {
+
+    private static final Set<String> VALID_TYPES = new HashSet<>(Arrays.asList(
+            Token.NUMBER, Token.CHAR, Token.STRING, Token.BOOLEAN,
+            "number array", "char array", "string array", "boolean array", "null array",
+            Token.ARRAY, Token.NULL
+    ));
+
+    private static final Set<String> VALID_RETURN_TYPES = new HashSet<>(VALID_TYPES);
+
+    static {
+        VALID_RETURN_TYPES.add(Token.VOID);
+    }
+
     interface BuiltinFunction {
-        Object execute(List<Object> arguments) throws ParseException;
+        Object execute(Object context, List<Object> arguments) throws ParseException;
     }
 
     private static class Function {
@@ -46,19 +59,8 @@ public class Parser {
     private final Deque<Map<String, Object>> scopes = new LinkedList<>();
     private final Map<String, String> variableTypes = new HashMap<>();
     private final Map<String, Function> functions = new HashMap<>();
-    private final Map<String, BuiltinFunction> builtinFunctions = new HashMap<>();
     private final Set<String> constants = new HashSet<>();
-
-    private static final Set<String> VALID_TYPES = new HashSet<>(Arrays.asList(
-            Token.NUMBER, Token.CHAR, Token.STRING, Token.BOOLEAN,
-            "number array", "char array", "string array", "boolean array",
-            Token.ARRAY, Token.NULL
-    ));
-
-    private static final Set<String> VALID_RETURN_TYPES = new HashSet<>(VALID_TYPES);
-    static {
-        VALID_RETURN_TYPES.add(Token.VOID);
-    }
+    private final Map<String, Map<Class<?>, BuiltinFunction>> builtinFunctions = new HashMap<>();
 
     public Parser(List<Token> tokens, String fileName, String input) throws ParseException {
         this.fileName = fileName;
@@ -67,8 +69,6 @@ public class Parser {
         scopes.push(new HashMap<>());
         initializeBuiltinFunctions();
         preParseFunctions();
-
-        tokens.forEach(token -> System.out.println(token.getToken()));
     }
 
     private void preParseFunctions() throws ParseException {
@@ -77,34 +77,30 @@ public class Parser {
             if (currentPosition().getToken().equals(Token.FUNC)) {
                 functionDeclaration();
             } else {
-                // 함수 정의가 아닌 경우 다음 토큰으로 이동
                 position++;
             }
         }
-        // 파싱 위치 초기화
         position = savedPosition;
     }
 
     private void initializeBuiltinFunctions() {
-        builtinFunctions.put("length", args -> {
-            if (args.size() != 1 || !(args.get(0) instanceof List))
-                throw new ParseException(fileName, "length() expects one array argument",
-                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-            return new BigDecimal(((List<?>) args.get(0)).size());
+        registerBuiltinFunction("length", ArrayList.class, (context, args) ->
+                new BigDecimal(((List<?>) context).size()));
+
+        registerBuiltinFunction("repeat", String.class, (context, args) -> {
+            validateArguments("repeat", args, 1, BigDecimal.class);
+            int count = ((BigDecimal) args.get(0)).intValue();
+            return ((String) context).repeat(count);
         });
 
-        builtinFunctions.put("add", args -> {
-            if (args.size() != 2 || !(args.get(0) instanceof List))
-                throw new ParseException(fileName, "add() expects an array and an element",
-                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        registerBuiltinFunction("add", ArrayList.class, (context, args) -> {
+            validateArguments("add", args, 2, List.class, Object.class);
             ((List<Object>) args.get(0)).add(args.get(1));
             return null;
         });
 
-        builtinFunctions.put("get", args -> {
-            if (args.size() != 2 || !(args.get(0) instanceof List) || !(args.get(1) instanceof BigDecimal))
-                throw new ParseException(fileName, "get() expects an array and an index",
-                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        registerBuiltinFunction("get", List.class, (context, args) -> {
+            validateArguments("get", args, 2, List.class, BigDecimal.class);
             List<Object> list = (List<Object>) args.get(0);
             int index = ((BigDecimal) args.get(1)).intValue();
             if (index < 0 || index >= list.size())
@@ -113,13 +109,32 @@ public class Parser {
             return list.get(index);
         });
 
-        builtinFunctions.put("repeat", args -> {
-            if (args.size() != 2 || !(args.get(0) instanceof String) || !(args.get(1) instanceof BigDecimal))
-                throw new ParseException(fileName, "repeat() can only be called on strings",
+        registerBuiltinFunction("set", ArrayList.class, (context, args) -> {
+            validateArguments("set", args, 3, List.class, BigDecimal.class, BigDecimal.class);
+            List<Object> list = (List<Object>) args.get(0);
+            int index = ((BigDecimal) args.get(1)).intValue();
+            if (index < 0 || index >= list.size())
+                throw new ParseException(fileName, "Index out of bounds",
                         currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-            int count = ((BigDecimal) args.get(1)).intValue();
-            return String.valueOf(args.get(0)).repeat(count);
+            list.set(index, args.get(2));
+            return null;
         });
+    }
+
+    private void validateArguments(String functionName, List<Object> args, int expectedCount, Class<?>... expectedTypes) throws ParseException {
+        if (args.size() != expectedCount) {
+            throw new ParseException(fileName, functionName + "() expects " + expectedCount +
+                    " argument" + (expectedCount > 1 ? "s" : "") + ", but got " + args.size(),
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+        for (int i = 0; i < expectedCount; i++) {
+            if (!(expectedTypes[i].isInstance(args.get(i)))) {
+                throw new ParseException(fileName, functionName + "() argument " + (i + 1) +
+                        " should be " + expectedTypes[i].getSimpleName() + ", but got " +
+                        args.get(i).getClass().getSimpleName(),
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            }
+        }
     }
 
     public void parse() {
@@ -139,15 +154,11 @@ public class Parser {
             case Token.IF -> ifStatement();
             case Token.FUNC -> functionDeclaration();
             case Token.IDENTIFIER, Token.DOLLAR -> {
-                if (peek(1).getToken().equals(Token.DOT)){
-                    dotStatement();
-                }else if (peek(1).getToken().equals(Token.LEFT_PAREN)) {
-                    functionCall(consume(Token.IDENTIFIER).getValue());
-                } else if (peek(1).getToken().equals(Token.EQUAL) ||
-                        peek(1).getToken().equals(Token.LEFT_BRACKET)) {
-                    variableAssignment();
-                } else {
-                    variableDeclaration();
+                switch (peek(1).getToken()) {
+                    case Token.DOT -> dotStatement();
+                    case Token.LEFT_PAREN -> functionCall(consume(Token.IDENTIFIER).getValue());
+                    case Token.EQUAL, Token.LEFT_BRACKET -> variableAssignment();
+                    default -> variableDeclaration();
                 }
             }
             default -> throw unexpectedTokenException("Invalid start of statement");
@@ -159,20 +170,15 @@ public class Parser {
         String identifier = consume(Token.IDENTIFIER).getValue();
         consume(Token.DOT);
         String methodName = consume(Token.IDENTIFIER).getValue();
-        Object array = getVariableValue(identifier);
-
-        if (!(array instanceof List)) {
-            throw new ParseException(fileName, "Cannot call method on non-array variable",
-                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-        }
+        Object object = getVariableValue(identifier);
 
         List<Object> args = new ArrayList<>();
-        args.add(array);
+        args.add(object);
         if (currentPosition().getToken().equals(Token.LEFT_PAREN)) {
             args.addAll(parseArguments());
         }
 
-        builtinFunctions.get(methodName).execute(args);
+        handleMethodCall(object, methodName, args);
     }
 
     private void functionDeclaration() throws ParseException {
@@ -186,10 +192,8 @@ public class Parser {
             consume(Token.COLON);
             String paramType = consume(currentPosition().getToken()).getToken();
 
-            if (!VALID_TYPES.contains(paramType)) {
-                throw new ParseException(fileName, "Invalid parameter type: " + paramType,
-                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-            }
+            validateType(paramType);
+
             parameters.add(new Parameter(paramName, paramType));
 
             if (currentPosition().getToken().equals(Token.COMMA)) {
@@ -202,10 +206,7 @@ public class Parser {
         if (currentPosition().getToken().equals(Token.COLON)) {
             consume(Token.COLON);
             returnType = consume(currentPosition().getToken()).getValue();
-            if (!VALID_RETURN_TYPES.contains(returnType)) {
-                throw new ParseException(fileName, "Invalid return type: " + returnType,
-                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-            }
+            validateReturnType(returnType);
         }
 
         consume(Token.LEFT_BRACE);
@@ -226,51 +227,10 @@ public class Parser {
 
         int functionBodyEnd = position - 1;
 
-        // 함수 정보 저장
         functions.put(functionName, new Function(functionName, parameters, returnType, functionBodyStart, functionBodyEnd));
     }
 
     private Object functionCall(String functionName) throws ParseException {
-        if (functions.containsKey(functionName)) {
-            consume(Token.LEFT_PAREN);
-            List<Object> arguments = new ArrayList<>();
-            if (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
-                do {
-                    arguments.add(expression());
-                    if (currentPosition().getToken().equals(Token.COMMA)) {
-                        consume(Token.COMMA);
-                    } else break;
-                } while (true);
-            }
-
-            consume(Token.RIGHT_PAREN);
-
-            Function function = functions.get(functionName);
-            if (function == null) {
-                throw new ParseException(fileName, "Undefined function: " + functionName,
-                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-            }
-
-            if (arguments.size() != function.parameters.size()) {
-                throw new ParseException(fileName,
-                        "Function " + functionName + " expects " + function.parameters.size() +
-                                " arguments, but got " + arguments.size(),
-                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-            }
-
-            return executeFunctionBody(function, arguments);
-        }
-
-        if (builtinFunctions.containsKey(functionName)) {
-            List<Object> arguments = parseArguments();
-            return builtinFunctions.get(functionName).execute(arguments);
-        }
-
-        throw new ParseException(fileName, "Undefined function: " + functionName,
-                currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-    }
-
-    private List<Object> parseArguments() throws ParseException {
         consume(Token.LEFT_PAREN);
         List<Object> arguments = new ArrayList<>();
         if (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
@@ -281,13 +241,29 @@ public class Parser {
                 } else break;
             } while (true);
         }
+
         consume(Token.RIGHT_PAREN);
-        return arguments;
+
+        if (functions.containsKey(functionName)) {
+            return executeUserDefinedFunction(functionName, arguments);
+        } else if (builtinFunctions.containsKey(functionName)) {
+            return handleMethodCall(null, functionName, arguments);
+        } else {
+            throw new ParseException(fileName, "Undefined function: " + functionName,
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
     }
 
-    private Object executeFunctionBody(Function function, List<Object> arguments) throws ParseException {
-        enterScope();
+    private Object executeUserDefinedFunction(String functionName, List<Object> arguments) throws ParseException {
+        Function function = functions.get(functionName);
+        if (arguments.size() != function.parameters.size()) {
+            throw new ParseException(fileName,
+                    "Function " + functionName + " expects " + function.parameters.size() +
+                            " arguments, but got " + arguments.size(),
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
 
+        enterScope();
         for (int i = 0; i < function.parameters.size(); i++) {
             Parameter param = function.parameters.get(i);
             getCurrentScope().put(param.name, arguments.get(i));
@@ -307,7 +283,6 @@ public class Parser {
                     throw new ParseException(fileName, "Void function should not return a value",
                             currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
                 }
-
 
                 returnValue = expression();
                 returned = true;
@@ -331,6 +306,21 @@ public class Parser {
     }
 
 
+    private List<Object> parseArguments() throws ParseException {
+        consume(Token.LEFT_PAREN);
+        List<Object> arguments = new ArrayList<>();
+        if (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
+            do {
+                arguments.add(expression());
+                if (currentPosition().getToken().equals(Token.COMMA)) {
+                    consume(Token.COMMA);
+                } else break;
+            } while (true);
+        }
+        consume(Token.RIGHT_PAREN);
+        return arguments;
+    }
+
     private void variableDeclaration() throws ParseException {
         boolean isConstant = currentPosition().getToken().equals(Token.DOLLAR);
         if (isConstant) consume(Token.DOLLAR);
@@ -339,7 +329,7 @@ public class Parser {
         ensureVariableNotDeclaredLocal(variableName);
 
         consume(Token.COLON);
-        String type = parseType();  // 새로운 메서드를 사용
+        String type = parseType();
 
         consume(Token.EQUAL);
 
@@ -650,7 +640,7 @@ public class Parser {
                     getCurrentLine());
         }
 
-        enterScope(); // for 루프 스코프 시작
+        enterScope();
 
         int forLoopStartPosition = position;
         if (step.compareTo(BigDecimal.ZERO) > 0) {
@@ -669,7 +659,7 @@ public class Parser {
             }
         }
 
-        exitScope(); // for 루프 스코프 종료
+        exitScope();
     }
 
     private BigDecimal getRangeStart() throws ParseException {
@@ -692,17 +682,17 @@ public class Parser {
     }
 
     private void checkType(Object value, String type) throws ParseException {
-        if (type.endsWith(" array")) { // 배열 타입인 경우
+        if (type.endsWith(" array")) {
             if (!(value instanceof List<?>)) {
                 throw new ParseException(fileName, "Type mismatch: Expected " + type + ", found " + value.getClass().getSimpleName(),
                         currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
             }
 
-            String elementType = type.substring(0, type.length() - " array".length()); // 요소 타입 추출
+            String elementType = type.substring(0, type.length() - " array".length());
             for (Object element : (List<?>) value) {
-                checkType(element, elementType); // 재귀적으로 요소 타입 확인
+                checkType(element, elementType);
             }
-        } else { // 기본 타입인 경우
+        } else {
             boolean isValidType = switch (type) {
                 case Token.NUMBER -> value instanceof BigDecimal;
                 case Token.STRING -> value instanceof String;
@@ -762,9 +752,9 @@ public class Parser {
         consume(Token.RIGHT_PAREN);
 
         if (condition) {
-            enterScope();  // if 조건문 스코프 시작
+            enterScope();
             executeConditionalBlock();
-            exitScope();  // if 조건문 스코프 종료
+            exitScope();
         } else {
             skipConditionalBlock();
         }
@@ -781,9 +771,9 @@ public class Parser {
             consume(Token.RIGHT_PAREN);
 
             if (!previousConditionMet && condition) {
-                enterScope();  // else if 조건문 스코프 시작
+                enterScope();
                 executeConditionalBlock();
-                exitScope();  // else if 조건문 스코프 종료
+                exitScope();
                 previousConditionMet = true;
             } else {
                 skipConditionalBlock();
@@ -796,9 +786,9 @@ public class Parser {
             consume(Token.ELSE);
 
             if (!previousConditionMet) {
-                enterScope();  // else 블록 스코프 시작
+                enterScope();
                 executeConditionalBlock();
-                exitScope();  // else 블록 스코프 종료
+                exitScope();
             } else {
                 skipConditionalBlock();
             }
@@ -842,7 +832,7 @@ public class Parser {
     }
 
     private void skipStatement() {
-        while (!isAtEnd() && !currentPosition().getToken().equals(Token.SEMICOLON)) {
+        while (!isAtEnd()) {
             position++;
         }
         if (!isAtEnd()) {
@@ -851,11 +841,11 @@ public class Parser {
     }
 
     private void block() throws ParseException {
-        enterScope();  // 블록 스코프 시작
+        enterScope();
         while (!currentPosition().getToken().equals(Token.RIGHT_BRACE) && !isAtEnd()) {
             statement();
         }
-        exitScope();  // 블록 스코프 종료
+        exitScope();
     }
 
     private void enterScope() {
@@ -954,6 +944,7 @@ public class Parser {
 
     private Object arithmeticExpression() throws ParseException {
         Object left = term();
+
         while (currentPosition().getToken().equals(Token.PLUS) ||
                 currentPosition().getToken().equals(Token.MINUS)) {
             String operator = currentPosition().getToken();
@@ -966,6 +957,7 @@ public class Parser {
 
     private Object term() throws ParseException {
         Object left = factor();
+
         while (currentPosition().getToken().equals(Token.ASTERISK) ||
                 currentPosition().getToken().equals(Token.SLASH) ||
                 currentPosition().getToken().equals(Token.PERCENT)) {
@@ -979,33 +971,26 @@ public class Parser {
 
     private Object factor() throws ParseException {
         Token current = currentPosition();
+
         return switch (current.getToken()) {
             case Token.NUMBER_LITERAL -> new BigDecimal(consume(Token.NUMBER_LITERAL).getValue());
             case Token.VARIABLE_LITERAL -> getVariableValue(consume(Token.VARIABLE_LITERAL).getValue());
             case Token.BOOLEAN_LITERAL -> Boolean.parseBoolean(consume(Token.BOOLEAN_LITERAL).getValue());
-            case Token.LEFT_PAREN -> {
-                consume(Token.LEFT_PAREN);
-                Object result = expression();
-                consume(Token.RIGHT_PAREN);
-                yield result;
-            }
             case Token.STRING_LITERAL -> {
                 String literal = consume(Token.STRING_LITERAL).getValue();
                 if (currentPosition().getToken().equals(Token.DOT)) {
                     consume(Token.DOT);
                     String methodName = consume(Token.IDENTIFIER).getValue();
-                    if (methodName.equals("repeat") && currentPosition().getToken().equals(Token.LEFT_PAREN)) {
-                        consume(Token.LEFT_PAREN);
-                        BigDecimal count = expressionNumber();
-                        consume(Token.RIGHT_PAREN);
-                        yield literal.repeat(count.intValue());
-                    } else {
-                        throw new ParseException(fileName, "Unsupported method call on string literal",
-                                currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-                    }
+                    yield handleMethodCall(literal, methodName, new ArrayList<>());
                 } else {
                     yield literal;
                 }
+            }
+            case Token.LEFT_PAREN -> {
+                consume(Token.LEFT_PAREN);
+                Object result = expression();
+                consume(Token.RIGHT_PAREN);
+                yield result;
             }
             case Token.IDENTIFIER, Token.DOLLAR -> {
                 String identifier = consumeVariableName(current);
@@ -1013,36 +998,11 @@ public class Parser {
                 if (currentPosition().getToken().equals(Token.LEFT_PAREN)) {
                     yield functionCall(identifier);
                 } else if (currentPosition().getToken().equals(Token.DOT)) {
+                    Object value = getVariableValue(identifier);
+
                     consume(Token.DOT);
                     String methodName = consume(Token.IDENTIFIER).getValue();
-
-                    if (methodName.equals("repeat") && currentPosition().getToken().equals(Token.LEFT_PAREN)) {
-                        consume(Token.LEFT_PAREN);
-                        BigDecimal count = expressionNumber();
-                        consume(Token.RIGHT_PAREN);
-
-                        Object value = getVariableValue(identifier);
-                        if (!(value instanceof String)) {
-                            throw new ParseException(fileName, "repeat() can only be called on strings",
-                                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-                        }
-
-                        yield builtinFunctions.get(methodName).execute(List.of(value, count));
-                    }
-
-                    Object array = getVariableValue(identifier);
-                    if (!(array instanceof List)) {
-                        throw new ParseException(fileName, "Cannot call method on non-array variable",
-                                currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-                    }
-
-                    List<Object> args = new ArrayList<>();
-                    args.add(array);
-                    if (currentPosition().getToken().equals(Token.LEFT_PAREN)) {
-                        args.addAll(parseArguments());
-                    }
-                    yield builtinFunctions.get(methodName).execute(args);
-
+                    yield handleMethodCall(value, methodName, new ArrayList<>());
                 }  else if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
                     List<Integer> indices = new ArrayList<>();
                     while (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
@@ -1063,6 +1023,25 @@ public class Parser {
             }
             default -> throw unexpectedTokenException("Unexpected token in factor");
         };
+    }
+
+    private Object handleMethodCall(Object context, String methodName, List<Object> args) throws ParseException {
+        if (context == null && args.size() > 0) {
+            context = args.remove(0);
+        }
+
+        Map<Class<?>, BuiltinFunction> functions = builtinFunctions.get(methodName);
+        if (functions == null) {
+            throw new ParseException(fileName, "Undefined method: " + methodName,
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+
+        BuiltinFunction function = functions.get(context.getClass());
+        if (function == null) {
+            throw new ParseException(fileName, "Method " + methodName + " is not applicable for " + context.getClass().getSimpleName(),
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+        return function.execute(context, args);
     }
 
     private Object applyOperator(Object left, String operator, Object right) throws ParseException {
@@ -1129,8 +1108,10 @@ public class Parser {
 
     private Object getVariableValue(String variableName) throws ParseException {
         Iterator<Map<String, Object>> iterator = scopes.descendingIterator();
+
         while (iterator.hasNext()) {
             Map<String, Object> scope = iterator.next();
+
             if (scope.containsKey(variableName)) {
                 return scope.get(variableName);
             }
@@ -1138,7 +1119,7 @@ public class Parser {
 
         throw new ParseException(fileName, "Undefined variable: " + variableName,
                 currentPosition().getLine(),
-                currentPosition().getColumn() ,
+                currentPosition().getColumn(),
                 getCurrentLine());
     }
 
@@ -1231,7 +1212,7 @@ public class Parser {
             return evaluateArithmeticOperation((BigDecimal) left, (BigDecimal) right, operator);
         } else if (left instanceof String && right instanceof String) {
             return evaluateStringOperation((String) left, (String) right, operator);
-        } else if (left instanceof Boolean && right instanceof Boolean) { // Boolean 타입 처리 추가
+        } else if (left instanceof Boolean && right instanceof Boolean) {
             return evaluateBooleanOperation((Boolean) left, (Boolean) right, operator);
         } else {
             throw new ParseException(fileName, "Invalid operation between types",
@@ -1241,12 +1222,12 @@ public class Parser {
         }
     }
 
-    private Object evaluateBooleanOperation(Boolean left, Boolean right, String operator) { // Boolean 연산 함수 추가
+    private Object evaluateBooleanOperation(Boolean left, Boolean right, String operator) {
         return switch (operator) {
             case Token.EQUAL_EQUAL -> left == right;
             case Token.NOT_EQUAL -> left != right;
-            case Token.AND -> left && right; // AND 연산 추가
-            case Token.OR -> left || right;  // OR 연산 추가
+            case Token.AND -> left && right;
+            case Token.OR -> left || right;
             default -> throw new IllegalArgumentException("Unsupported operator for boolean: " + operator);
         };
     }
@@ -1311,5 +1292,23 @@ public class Parser {
                 currentPosition().getLine(),
                 currentPosition().getColumn(),
                 getCurrentLine());
+    }
+
+    private void registerBuiltinFunction(String name, Class<?> contextType, BuiltinFunction function) {
+        builtinFunctions.computeIfAbsent(name, k -> new HashMap<>()).put(contextType, function);
+    }
+
+    private void validateType(String type) throws ParseException {
+        if (!VALID_TYPES.contains(type)) {
+            throw new ParseException(fileName, "Invalid parameter type: " + type,
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
+    }
+
+    private void validateReturnType(String returnType) throws ParseException {
+        if (!VALID_RETURN_TYPES.contains(returnType)) {
+            throw new ParseException(fileName, "Invalid return type: " + returnType,
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
     }
 }
