@@ -18,7 +18,7 @@ for (afterSort: number in arrNum) {
   print("${afterSort}")
 }
 
-fun sort(arrNum: number[]) {
+func sort(arrNum: number[]):void {
     n: number = arrNum.length
     for (i: number in 0 .. n - 2) {
         for (j: number 0 .. n - i - 2) {
