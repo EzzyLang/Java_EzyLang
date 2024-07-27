@@ -174,6 +174,17 @@ public class Parser {
             list.set(index, args.get(2));
             return null;
         });
+
+        // Register the 'remove' function for ArrayLists
+        registerBuiltinFunction("remove", ArrayList.class, (context, args) -> {
+            validateArguments("remove", args, 2, List.class, BigDecimal.class);
+            List<Object> list = (List<Object>) args.get(0);
+            int index = ((BigDecimal) args.get(1)).intValue();
+            if (index < 0 || index >= list.size())
+                throw new ParseException(fileName, "Index out of bounds",
+                        currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+            return list.remove(index);
+        });
     }
 
     /**
@@ -187,8 +198,8 @@ public class Parser {
      */
     private void validateArguments(String functionName, List<Object> args, int expectedCount, Class<?>... expectedTypes) throws ParseException {
         if (args.size() != expectedCount) {
-            throw new ParseException(fileName, functionName + "() expects " + expectedCount +
-                    " argument" + (expectedCount > 1 ? "s" : "") + ", but got " + args.size(),
+            throw new ParseException(fileName, functionName + "() expects " + (expectedCount - 1)+
+                    " argument" + (expectedCount > 1 ? "s" : "") + ", but got " + (args.size() - 1),
                     currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
         }
         for (int i = 0; i < expectedCount; i++) {

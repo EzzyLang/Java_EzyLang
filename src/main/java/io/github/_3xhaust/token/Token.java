@@ -66,7 +66,6 @@ public class Token {
     // Functions
     public static final String PRINT = "print";
     public static final String PRINTLN = "println";
-    public static final String FOR_EACH = "forEach";
 
     // Control Flow
     public static final String IF = "if";

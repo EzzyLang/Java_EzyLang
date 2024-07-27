@@ -1,6 +1,6 @@
-asdf: number[] = [1, 2]
-asdf.set(3, 2)
-println(asdf)
+asdf: number[] = [1, 2, 3, 4, 5]
+asdf.remove(0)
+println("Array length: " + asdf)
 
 // 1. 변수 선언 및 기본 데이터 타입 테스트
 num: number = 10
@@ -109,25 +109,26 @@ func printInfo(name: string, age: number): void {
 
 printInfo("Alice", 30)
 
+// TODO: 한줄 이프 테스트
+/*
+if(false)
+    println("true")
+else
+    println("false")
+*/
+
+
 //TODO: 14. 재귀 함수 테스트
+/*
 func factorial(n1: number): number {
-    if (n1 <= 1) {return 1}
+    if (n1 <= 1) return 1
 
     return n1 * factorial(n1 - 1)
 }
 println("Factorial of 5: " + factorial(5))
-
-
-// TODO: 15. 함수를 인자로 전달하는 테스트 (고차 함수)
-/*
-func applyOperation(a: number, b: number, operation: (number, number) -> number): number {
-    return operation(a, b)
-}
-
-println("Result of applyOperation with add: " + applyOperation(10, 20, add))
 */
 
-// TODO: 16. 중첩 함수 호출 테스트
+// TODO: 15. 중첩 함수 호출 테스트
 /*
 func outer(x: number): number {
     func inner(y: number): number {
@@ -135,12 +136,12 @@ func outer(x: number): number {
     }
     return inner(x) + 5
 }
-*/
 
 println("Result of outer(10): " + outer(10))
+*/
 
 
-// 17. 스코프 테스트
+// 16. 스코프 테스트
 globalVar: number = 100
 
 func testScope(): void {
@@ -153,7 +154,7 @@ testScope()
 // 다음 줄의 주석을 해제하면 에러가 발생해야 합니다 (지역 변수에 접근 불가)
 //println(localVar)
 
-// 18. null 체크 및 처리 테스트
+// 17. null 체크 및 처리 테스트
 nullableVar: null = null
 if (nullableVar is null) {
     println("nullableVar is null")
@@ -161,11 +162,11 @@ if (nullableVar is null) {
     println(nullableVar)
 }
 
-// 19. 복잡한 표현식 테스트
+// 18. 복잡한 표현식 테스트
 complexResult: number = ((a + b) * 2 - (15 / 3)) % 7
 println("Complex expression result: " + complexResult)
 
-// 20. 문자열 템플릿 테스트 (지원되는 경우)
+// 19. 문자열 템플릿 테스트
 name: string = "EZY"
 age: number = 1
 println("${name} language is ${age} year old")
