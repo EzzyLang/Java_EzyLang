@@ -103,7 +103,7 @@ public class Parser {
         this.fileName = fileName;
         this.lines = input.split("\n");
         this.tokens = tokens;
-        tokens.forEach(token -> System.out.println(token.getToken()));
+        //tokens.forEach(token -> System.out.println(token.getToken()));
         // Initialize the global scope
         scopes.push(new HashMap<>());
         // Register built-in functions
@@ -140,6 +140,7 @@ public class Parser {
 
         // Register the 'repeat' function for Strings
         registerBuiltinFunction("repeat", String.class, (context, args) -> {
+            args.remove(context);
             validateArguments("repeat", args, 1, BigDecimal.class);
             int count = ((BigDecimal) args.get(0)).intValue();
             return ((String) context).repeat(count);
@@ -147,16 +148,18 @@ public class Parser {
 
         // Register the 'add' function for ArrayLists
         registerBuiltinFunction("add", ArrayList.class, (context, args) -> {
-            validateArguments("add", args, 2, List.class, Object.class);
-            ((List<Object>) args.get(0)).add(args.get(1));
+            args.remove(context);
+            validateArguments("add", args, 1, Object.class);
+            ((List<Object>) context).add(args.get(0));
             return null;
         });
 
-        // Register the 'get' function for Lists
-        registerBuiltinFunction("get", List.class, (context, args) -> {
-            validateArguments("get", args, 2, List.class, BigDecimal.class);
-            List<Object> list = (List<Object>) args.get(0);
-            int index = ((BigDecimal) args.get(1)).intValue();
+        // Register the 'get' function for ArrayLists
+        registerBuiltinFunction("get", ArrayList.class, (context, args) -> {
+            args.remove(context);
+            validateArguments("get", args, 1, BigDecimal.class);
+            List<Object> list = (List<Object>) context;
+            int index = ((BigDecimal) args.get(0)).intValue();
             if (index < 0 || index >= list.size())
                 throw new ParseException(fileName, "Index out of bounds",
                         currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
@@ -165,21 +168,23 @@ public class Parser {
 
         // Register the 'set' function for ArrayLists
         registerBuiltinFunction("set", ArrayList.class, (context, args) -> {
-            validateArguments("set", args, 3, List.class, BigDecimal.class, BigDecimal.class);
-            List<Object> list = (List<Object>) args.get(0);
-            int index = ((BigDecimal) args.get(1)).intValue();
+            args.remove(context);
+            validateArguments("set", args, 2, BigDecimal.class, BigDecimal.class);
+            List<Object> list = (List<Object>) context;
+            int index = ((BigDecimal) args.get(0)).intValue();
             if (index < 0 || index >= list.size())
                 throw new ParseException(fileName, "Index out of bounds",
                         currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
-            list.set(index, args.get(2));
+            list.set(index, args.get(1));
             return null;
         });
 
         // Register the 'remove' function for ArrayLists
         registerBuiltinFunction("remove", ArrayList.class, (context, args) -> {
-            validateArguments("remove", args, 2, List.class, BigDecimal.class);
-            List<Object> list = (List<Object>) args.get(0);
-            int index = ((BigDecimal) args.get(1)).intValue();
+            args.remove(context);
+            validateArguments("remove", args, 1, BigDecimal.class);
+            List<Object> list = (List<Object>) context;
+            int index = ((BigDecimal) args.get(0)).intValue();
             if (index < 0 || index >= list.size())
                 throw new ParseException(fileName, "Index out of bounds",
                         currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
@@ -188,16 +193,58 @@ public class Parser {
 
         // Register the 'clear' function for ArrayLists
         registerBuiltinFunction("clear", ArrayList.class, (context, args) -> {
-            validateArguments("clear", args, 1, List.class);
-            ((List<Object>) args.get(0)).clear();
+            args.remove(context);
+            validateArguments("clear", args, 0);
+            ((List<Object>) context).clear();
             return null;
         });
 
         // Register the 'addAll' function for ArrayLists
         registerBuiltinFunction("addAll", ArrayList.class, (context, args) -> {
-            validateArguments("addAll", args, 2, List.class, List.class);
-            return ((List<Object>) args.get(0)).addAll((List<Object>) args.get(1));
+            args.remove(context);
+            validateArguments("addAll", args, 1, List.class);
+            return ((List<Object>) context).addAll((List<Object>) args.get(0));
         });
+
+//        // Register the 'forEach' function for ArrayLists
+//        registerBuiltinFunction("forEach", ArrayList.class, (context, args) -> {
+//            validateArguments("forEach", args, 2, List.class, Function.class);
+//            List<Object> list = (List<Object>) args.get(0);
+//            Function function = (Function) args.get(1);
+//            for (Object item : list) {
+//                List<Object> arguments = new ArrayList<>();
+//                arguments.add(item);
+//                function.execute(null, arguments);
+//            }
+//            return null;
+//        });
+
+        // Register the 'contains' function for ArrayLists
+        registerBuiltinFunction("contains", ArrayList.class, (context, args) -> {
+            args.remove(context);
+            validateArguments("contains", args, 1, Object.class);
+            return ((List<Object>) context).contains(args.get(0));
+        });
+
+        // Register the 'indexOf' function for ArrayLists
+        registerBuiltinFunction("indexOf", ArrayList.class, (context, args) -> {
+            args.remove(context);
+            validateArguments("indexOf", args, 1, Object.class);
+            return ((List<Object>) context).indexOf(args.get(0));
+        });
+
+        // Register the 'isEmpty' function for ArrayLists
+        registerBuiltinFunction("isEmpty", ArrayList.class, (context, args) ->
+            ((List<Object>) context).isEmpty());
+
+        // Register the 'removeAll' function for ArrayLists
+        registerBuiltinFunction("removeAll", ArrayList.class, (context, args) -> {
+            args.remove(context);
+            validateArguments("removeAll", args, 1, List.class);
+            return ((List<Object>) context).removeAll((List<Object>) args.get(0));
+        });
+
+
 
     }
 
@@ -452,13 +499,11 @@ public class Parser {
     private List<Object> parseArguments() throws ParseException {
         consume(Token.LEFT_PAREN);
         List<Object> arguments = new ArrayList<>();
-        if (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
-            do {
-                arguments.add(expression());
-                if (currentPosition().getToken().equals(Token.COMMA)) {
-                    consume(Token.COMMA);
-                } else break;
-            } while (true);
+        while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
+            arguments.add(expression());
+            if (currentPosition().getToken().equals(Token.COMMA)) {
+                consume(Token.COMMA);
+            } else break;
         }
         consume(Token.RIGHT_PAREN);
         return arguments;
@@ -1028,9 +1073,6 @@ public class Parser {
         List<Object> printArgs = new ArrayList<>();
         while (!currentPosition().getToken().equals(Token.RIGHT_PAREN)) {
             printArgs.add(expression());
-            if (currentPosition().getToken().equals(Token.COMMA)) {
-                consume(Token.COMMA);
-            }
         }
 
         consume(Token.RIGHT_PAREN);
@@ -1412,7 +1454,9 @@ public class Parser {
                 if (currentPosition().getToken().equals(Token.DOT)) {
                     consume(Token.DOT);
                     String methodName = consume(Token.IDENTIFIER).getValue();
-                    yield handleMethodCall(literal, methodName, new ArrayList<>());
+                    List<Object> args = parseArguments();
+
+                    yield handleMethodCall(literal, methodName, args);
                 } else {
                     yield literal;
                 }
@@ -1435,7 +1479,9 @@ public class Parser {
 
                     consume(Token.DOT);
                     String methodName = consume(Token.IDENTIFIER).getValue();
-                    yield handleMethodCall(value, methodName, new ArrayList<>());
+                    List<Object> args = parseArguments();
+
+                    yield handleMethodCall(value, methodName, args);
                 }
                 // Handle array indexing
                 else if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
