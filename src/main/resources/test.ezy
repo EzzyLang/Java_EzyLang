@@ -1,172 +1,24 @@
-// 1. 변수 선언 및 기본 데이터 타입 테스트
-num: number = 10
-str: string = "Hello, EZY!"
-bool: boolean = true
-ch: char = 'A'
-n: null = null
-
-println("Number: " + num)
-println("String: " + str)
-println("Boolean: " + bool)
-println("Char: " + ch)
-println("Null: " + (n is null))
-
-// 2. 상수 선언 테스트
-$PI: number = 3.14159
-println("Constant PI: " + $PI)
-
-// 3. 산술 연산자 테스트
-a: number = 15
-b: number = 7
-println("Addition: " + (a + b))
-println("Subtraction: " + (a - b))
-println("Multiplication: " + (a * b))
-println("Division: " + (a / b))
-println("Modulus: " + (a % b))
-
-// 4. 비교 연산자 테스트
-println("Equal: " + (a == b))
-println("Not Equal: " + (a != b))
-println("Greater Than: " + (a > b))
-println("Less Than: " + (a < b))
-println("Greater Than or Equal: " + (a >= b))
-println("Less Than or Equal: " + (a <= b))
-
-// 5. 논리 연산자 테스트
-x: boolean = true
-y: boolean = false
-println("AND: " + (x && y))
-println("OR: " + (x || y))
-// TODO: println("NOT: " + (!x))
-
-// 6. 문자열 연산 테스트
-str1: string = "Hello"
-str2: string = "World"
-println("String Concatenation: " + str1 + ", " + str2)
-
-// 7. 타입 체크 테스트
-println("num is number: " + (num is number))
-println("str is string: " + (str is string))
-println("bool is boolean: " + (bool is boolean))
-
-// 8. if-else 테스트
-if (a > b) {
-    println("a is greater than b")
-} else if (a < b) {
-    println("a is less than b")
-} else {
-    println("a is equal to b")
-}
-
-// 9. for 루프 테스트
-println("Counting from 1 to 5:")
-for (i: number in 1..5) {
-    println(i)
-}
-
-// 10. 배열 테스트
-arr: number[] = [1, 2, 3, 4, 5]
-println("Array length: " + arr.length())
-println("Third element: " + arr[2])
-
-// 배열 요소 변경
-arr[0] = 10
-println("Modified array first element: " + arr[0])
-
-// 배열 순회
-print("Array elements: ")
-for (item: number in arr) {
-    print(item + " ")
-}
-println()
-
-// TODO: 11. 다차원 배열 테스트
-/*
-matrix: number[][] = [[1, 2], [3, 4], [5, 6]]
-println("Matrix:")
-for (row: number[] in matrix) {
-    for (elem: number in row) {
-        print(elem + " ")
-    }
-    println()
-}
-*/
-
-// 12. 함수 선언 및 호출 테스트
-func add(x: number, y: number): number {
-    return x + y
-}
-
-result: number = add(5, 3)
-println("Result of add(5, 3): " + result)
-
-// 13. void 함수 테스트
-func printInfo(name: string, age: number): void {
-    println(name + " is " + age + " years old.")
-}
-
-printInfo("Alice", 30)
-
-//TODO: 14. 재귀 함수 테스트
-/*
-func factorial(n1: number): number {
-    if (n1 <= 1) {
-        return 1
-    }
-    return n1 * factorial(n1 - 1)
-}
-println("Factorial of 5: " + factorial(5))
-*/
-
-// TODO: 15. 함수를 인자로 전달하는 테스트 (고차 함수)
-/*
-func applyOperation(a: number, b: number, operation: (number, number) -> number): number {
-    return operation(a, b)
-}
-
-println("Result of applyOperation with add: " + applyOperation(10, 20, add))
-*/
-
-// TODO: 16. 중첩 함수 호출 테스트
-
-func outer(x: number): number {
-    func inner(y: number): number {
-        return y * 2
-    }
-    return inner(x) + 5
-}
-
-println("Result of outer(10): " + outer(10))
-
-
-// 17. 스코프 테스트
-globalVar: number = 100
-
-func testScope(): void {
-    localVar: number = 200
-    println("Access global variable: " + globalVar)
-    println("Access local variable: " + localVar)
-}
-
-testScope()
-// 다음 줄의 주석을 해제하면 에러가 발생해야 합니다 (지역 변수에 접근 불가)
-//println(localVar)
-
-// 18. null 체크 및 처리 테스트
-nullableVar: null = null
-if (nullableVar is null) {
-    println("nullableVar is null")
-} else {
-    println(nullableVar)
-}
-
-// 19. 복잡한 표현식 테스트
-complexResult: number = ((a + b) * 2 - (15 / 3)) % 7
-println("Complex expression result: " + complexResult)
-
-// 20. 문자열 템플릿 테스트 (지원되는 경우)
-name: string = "EZY"
-age: number = 1
-println("${name} language is ${age} year old")
-
-println("All tests completed.")
+asdf: number[] = [1, 2, 3, 4, 5]
+asdfg: number[] = [1, 2]
+// TODO: a: string = "a".repeat(3)
+asdf.add(6)
+println(asdf.length())
+asdf.remove(0)
+println(asdf)
+println(asdf.get(0))
+println("a".repeat(3))
+asdf.set(0, 0)
+println(asdf)
+println(asdf.containsAll(asdfg))
+asdf.clear()
+println(asdf)
+asdf.addAll(asdfg)
+println(asdf)
+println(asdf.contains(1))
+println(asdf.contains(3))
+println(asdf.indexOf(1))
+println(asdf.indexOf(3))
+println(asdf.isEmpty())
+asdf.removeAll(asdfg)
+println(asdf)
+println(asdf.isEmpty())
