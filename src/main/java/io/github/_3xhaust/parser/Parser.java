@@ -103,12 +103,14 @@ public class Parser {
         this.fileName = fileName;
         this.lines = input.split("\n");
         this.tokens = tokens;
+        tokens.forEach(token -> System.out.println(token.getToken()));
         // Initialize the global scope
         scopes.push(new HashMap<>());
         // Register built-in functions
         initializeBuiltinFunctions();
         // Pre-parse function declarations for later calls
         preParseFunctions();
+
     }
 
     /**

@@ -1,5 +1,8 @@
 package io.github._3xhaust.exception;
 
+/**
+ * Represents a parsing error encountered during the compilation process.
+ */
 public class ParseException extends Exception {
     private final String fileName;
     private final int line;
@@ -16,6 +19,12 @@ public class ParseException extends Exception {
         this.errorLine = errorLine;
     }
 
+    /**
+     * Returns a formatted error message that includes the file name, line and column number,
+     * the error message, the line of code where the error occurred, and a caret pointing to the error location.
+     *
+     * @return A formatted error message string.
+     */
     public String getFormattedMessage() {
         return String.format("%s:%d:%d: error: %s\n%s\n%s^",
                 fileName, line, column, errorMessage, errorLine, " ".repeat(column - 1));

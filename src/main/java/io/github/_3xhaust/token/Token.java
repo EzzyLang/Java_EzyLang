@@ -1,24 +1,19 @@
 package io.github._3xhaust.token;
 
+/**
+ * Represents a single token in the source code.
+ * A token is the smallest meaningful unit of the language.
+ */
 public class Token {
-    // 대입 연산자
-    public static final String EQUAL = "=";
 
-    // 복합 대입 연산자
-    public static final String PLUS_EQUAL = "+=";
-    public static final String MINUS_EQUAL = "-=";
-    public static final String ASTERISK_EQUAL = "*=";
-    public static final String SLASH_EQUAL = "/=";
-    public static final String PERCENT_EQUAL = "%=";
-
-    // 산술 연산자
+    // Arithmetic Operators
     public static final String PLUS = "+";
     public static final String MINUS = "-";
     public static final String ASTERISK = "*";
     public static final String SLASH = "/";
     public static final String PERCENT = "%";
 
-    // 관계 연산자
+    // Relational Operators
     public static final String EQUAL_EQUAL = "==";
     public static final String NOT_EQUAL = "!=";
     public static final String LESS_THAN = "<";
@@ -26,16 +21,24 @@ public class Token {
     public static final String LESS_THAN_OR_EQUAL = "<=";
     public static final String GREATER_THAN_OR_EQUAL = ">=";
 
-    // 논리 연산자
+    // Logical Operators
     public static final String AND = "&&";
     public static final String OR = "||";
     public static final String BANG = "!";
 
-    // 증감 연산자
+    // Assignment Operators
+    public static final String EQUAL = "=";
+    public static final String PLUS_EQUAL = "+=";
+    public static final String MINUS_EQUAL = "-=";
+    public static final String ASTERISK_EQUAL = "*=";
+    public static final String SLASH_EQUAL = "/=";
+    public static final String PERCENT_EQUAL = "%=";
+
+    // Increment/Decrement Operators
     public static final String PLUS_PLUS = "++";
     public static final String MINUS_MINUS = "--";
 
-    // 비트 연산자
+    // Bitwise Operators
     public static final String BITWISE_AND = "&";
     public static final String BITWISE_OR = "|";
     public static final String BITWISE_XOR = "^";
@@ -43,33 +46,29 @@ public class Token {
     public static final String LEFT_SHIFT = "<<";
     public static final String RIGHT_SHIFT = ">>";
 
-    // 데이터타입
+    // Data Types
     public static final String NUMBER = "number";
     public static final String CHAR = "char";
     public static final String STRING = "string";
     public static final String BOOLEAN = "boolean";
-    public static final String NUMBER_ARRAY = "number array";
-    public static final String CHAR_ARRAY = "char array";
-    public static final String STRING_ARRAY = "string array";
-    public static final String BOOLEAN_ARRAY = "boolean array";
     public static final String ARRAY = "array";
     public static final String NULL = "null";
     public static final String VOID = "void";
 
-    // 리터럴 - 값을 가질 수 있음
-    public static final String IDENTIFIER = "identifier";
+    // Literals
+    public static final String IDENTIFIER = "identifier"; // Represents a variable or function name
     public static final String NUMBER_LITERAL = "number";
     public static final String CHAR_LITERAL = "char";
     public static final String STRING_LITERAL = "string";
     public static final String BOOLEAN_LITERAL = "boolean";
-    public static final String VARIABLE_LITERAL = "VARIABLE_LITERAL";
+    public static final String VARIABLE_LITERAL = "variable"; // Represents a variable within a string literal, like "Hello, ${name}!"
 
-    // 함수
+    // Functions
     public static final String PRINT = "print";
     public static final String PRINTLN = "println";
     public static final String FOR_EACH = "forEach";
 
-    // 제어문
+    // Control Flow
     public static final String IF = "if";
     public static final String ELSE = "else";
     public static final String ELSE_IF = "else if";
@@ -78,49 +77,57 @@ public class Token {
     public static final String BREAK = "break";
     public static final String CONTINUE = "continue";
     public static final String RETURN = "return";
-    public static final String IS = "is";
+    public static final String IS = "is"; // Type checking operator
+    public static final String AS = "as"; // Type casting operator
 
-    public static final String AS = "as";
-
-    // 정의
+    // Definition
     public static final String FUNC = "func";
 
-    // 루프
-    public static final String IN = "in";
-    public static final String DOT_LENGTH = ".length";
+    // Loop
+    public static final String IN = "in"; // Used in for-in loops
+    public static final String DOT_LENGTH = ".length"; // Array length property
 
-    // 기호
+    // Symbols
     public static final String LEFT_PAREN = "(";
     public static final String RIGHT_PAREN = ")";
     public static final String LEFT_BRACE = "{";
     public static final String RIGHT_BRACE = "}";
     public static final String LEFT_BRACKET = "[";
     public static final String RIGHT_BRACKET = "]";
-    public static final String DOLLAR = "$";
-    public static final String ARROW = "->";
+    public static final String DOLLAR = "$"; // Used for string interpolation
+    public static final String ARROW = "->"; // Used in lambda expressions
     public static final String COMMA = ",";
     public static final String DOT = ".";
-    public static final String DOT_DOT = "..";
+    public static final String DOT_DOT = ".."; // Range operator (e.g., 1..5)
     public static final String COLON = ":";
     public static final String SEMICOLON = ";";
 
     // End of File
-    public static final String EOF = "";
+    public static final String EOF = "EOF";
 
-    private final String token;
-    private String value;
-    private final int line;
-    private final int column;
+    private final String type; // The type of the token (e.g., IDENTIFIER, NUMBER_LITERAL, PLUS)
+    private final String value; // The actual value of the token (e.g., "myVariable", "123", "+")
+    private final int line; // Line number where the token is found in the source code
+    private final int column; // Column number where the token starts on the given line
 
-    public Token(String token, String value, int line, int column) {
-        this.token = token;
-        this.value = value != null ? value : ""; // Ensure value is not null
+    /**
+     * Constructs a new Token object.
+     *
+     * @param type  The type of the token.
+     * @param value The value of the token.
+     * @param line  The line number of the token.
+     * @param column The column number of the token.
+     */
+    public Token(String type, String value, int line, int column) {
+        this.type = type;
+        this.value = value != null ? value : "";
         this.line = line;
         this.column = column;
     }
 
+    // Getters for the token's properties
     public String getToken() {
-        return token;
+        return type;
     }
 
     public String getValue() {
@@ -135,4 +142,17 @@ public class Token {
         return column;
     }
 
+    /**
+     * Returns a string representation of the token.
+     * Useful for debugging.
+     */
+    @Override
+    public String toString() {
+        return "Token{" +
+                "type='" + type + '\'' +
+                ", value='" + value + '\'' +
+                ", line=" + line +
+                ", column=" + column +
+                '}';
+    }
 }
