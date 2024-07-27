@@ -1,6 +1,8 @@
-asdf: number[] = [1, 2, 3, 4, 5]
+asdf: number[] = [5, 2, 3, 4, 1]
 asdfg: number[] = [1, 2]
 // TODO: a: string = "a".repeat(3)
+println(asdf.sort())
+
 asdf.add(6)
 println(asdf.length())
 asdf.remove(0)
