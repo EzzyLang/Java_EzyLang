@@ -49,14 +49,29 @@ public class Parser {
     private final Map<String, BuiltinFunction> builtinFunctions = new HashMap<>();
     private final Set<String> constants = new HashSet<>();
 
-    public Parser(List<Token> tokens, String fileName, String input) {
+    public Parser(List<Token> tokens, String fileName, String input) throws ParseException {
         this.fileName = fileName;
         this.lines = input.split("\n");
         this.tokens = tokens;
         scopes.push(new HashMap<>());
         initializeBuiltinFunctions();
+        preParseFunctions();
 
         tokens.forEach(token -> System.out.println(token.getToken()));
+    }
+
+    private void preParseFunctions() throws ParseException {
+        int savedPosition = position;
+        while (!isAtEnd()) {
+            if (currentPosition().getToken().equals(Token.FUNC)) {
+                functionDeclaration();
+            } else {
+                // 함수 정의가 아닌 경우 다음 토큰으로 이동
+                position++;
+            }
+        }
+        // 파싱 위치 초기화
+        position = savedPosition;
     }
 
     private void initializeBuiltinFunctions() {
@@ -203,6 +218,7 @@ public class Parser {
 
         int functionBodyEnd = position - 1;
 
+        // 함수 정보 저장
         functions.put(functionName, new Function(functionName, parameters, returnType, functionBodyStart, functionBodyEnd));
     }
 

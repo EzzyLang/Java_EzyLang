@@ -4,28 +4,28 @@
 ~~안 편하다구요? 제가 편합니다~~
 
 ```
-arrNum: number[] = [5, 2, 3, 4, 1]
+arr: number[] = [5, 2, 3, 4, 1]
 
 print("정렬 전: ")
-for (beforeSort: number in arrNum) {
-  print("${beforeSort}")
+for (i: number in arr) {
+  print("${i}")
 }
 
-sort(arrNum)
+sort(arr)
 
 print("\n정렬 후: ")
-for (afterSort: number in arrNum) {
-  print("${afterSort}")
+for (i: number in arr) {
+  print("${i}")
 }
 
-func sort(arrNum: number[]):void {
-    n: number = arrNum.length
+func sort(arr: number[]): void {
+    n: number = arr.length
     for (i: number in 0 .. n - 2) {
-        for (j: number 0 .. n - i - 2) {
+        for (j: number in 0 .. n - i - 2) {
             if (arr[j] >= arr[j + 1]) {
-                temp: number = arr[j];
-                arr[j] = arr[j + 1];
-                arr[j + 1] = temp;
+                temp: number = arr[j]
+                arr[j] = arr[j + 1]
+                arr[j + 1] = temp
             }
         }
     }
