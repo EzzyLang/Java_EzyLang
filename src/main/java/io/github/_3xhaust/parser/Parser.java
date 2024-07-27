@@ -239,6 +239,19 @@ public class Parser {
             validateArguments("containsAll", args, 1, List.class);
             return ((List<Object>) context).containsAll((List<Object>) args.get(0));
         });
+
+        // Register the 'sort' function for Objects
+        registerBuiltinFunction("sort", ArrayList.class, (context, args) -> {
+            validateArguments("sort", args, 0);
+            List<Object> list = (List<Object>) context;
+            Collections.sort(list, (o1, o2) -> {
+                if (o1 instanceof Comparable<?> && o2 instanceof Comparable<?>) {
+                    return ((Comparable<Object>) o1).compareTo(o2);
+                }
+                return 0;
+            });
+            return list;
+        });
     }
 
     /**
