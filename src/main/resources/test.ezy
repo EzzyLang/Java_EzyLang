@@ -2,8 +2,8 @@ asdf: number[] = [5, 2, 3, 4, 1]
 asdfg: number[] = [1, 2]
 // TODO: println(변수[인덱스].메소드)
 // TODO: a: string = "a".repeat(3)
-a: string = "a".repeat(3)
-println(asdf[0].repeat(3))
+// a: string = "a".repeat(3)
+// println(asdf[0].repeat(3))
 
 asdf.add(6)
 println(asdf.length())

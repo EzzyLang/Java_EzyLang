@@ -13,7 +13,6 @@ import java.util.*;
  * It also provides error handling by throwing ParseException if any syntax error occurs.
  */
 public class Parser {
-
     // Set of valid data types in the language
     private static final Set<String> VALID_TYPES = new HashSet<>(Arrays.asList(
             Token.NUMBER, Token.CHAR, Token.STRING, Token.BOOLEAN,
@@ -79,6 +78,8 @@ public class Parser {
     private final String fileName; // Name of the file being parsed
     private final String[] lines; // Lines of the input code for error reporting
     private int position = 0; // Current position in the token list
+    boolean breakFlag = false;
+    boolean continueFlag = false;
 
     // Stack of scopes for variable resolution
     private final Deque<Map<String, Object>> scopes = new LinkedList<>();
@@ -300,6 +301,14 @@ public class Parser {
     private void statement() throws ParseException {
         // Determine the type of statement based on the current token
         switch (currentPosition().getToken()) {
+            case Token.BREAK -> {
+                consume(Token.BREAK);
+                breakFlag = true;
+            }
+            case Token.CONTINUE -> {
+                consume(Token.CONTINUE);
+                continueFlag = true;
+            }
             case Token.PRINT, Token.PRINTLN -> printStatement();
             case Token.FOR -> forStatement();
             case Token.WHILE -> whileStatement();
@@ -329,16 +338,21 @@ public class Parser {
 
         while (evaluateCondition()) {
             consume(Token.RIGHT_PAREN);
-
             enterScope();
             executeConditionalBlock();
+            if (breakFlag) break;
+
+            if (continueFlag) {
+                continueFlag = false;
+                position = conditionPosition;
+                continue;
+            }
             exitScope();
 
             position = conditionPosition;
         }
 
-        consume(Token.RIGHT_PAREN);
-        skipConditionalBlock();
+        breakFlag = false;
     }
 
 
@@ -922,7 +936,7 @@ public class Parser {
 
         // Determine if iterating over an array or a range
         if (currentPosition().getToken().equals(Token.IDENTIFIER)) {
-            iterateOverArray(variable, type);
+            iterateOverArray(variable);
         } else if (currentPosition().getToken().equals(Token.NUMBER_LITERAL)) {
             iterateOverRange(variable, type);
         } else {
@@ -934,10 +948,9 @@ public class Parser {
      * Iterates over an array in a for loop.
      *
      * @param variable       The name of the loop variable.
-     * @param type          The type of the loop variable.
      * @throws ParseException If a syntax error is encountered during parsing.
      */
-    private void iterateOverArray(String variable, String type) throws ParseException {
+    private void iterateOverArray(String variable) throws ParseException {
         String arrayVariable = consume(Token.IDENTIFIER).getValue();
         consume(Token.RIGHT_PAREN);
 
@@ -957,9 +970,18 @@ public class Parser {
 
             getCurrentScope().put(variable, element);
             executeForLoopBody();
+
+            if (breakFlag) break;
+
+            if (continueFlag) {
+                continueFlag = false;
+                continue;
+            }
         }
 
         exitScope();
+
+        breakFlag = false;
     }
 
     /**
@@ -997,17 +1019,34 @@ public class Parser {
                 checkType(i, type);
                 getCurrentScope().put(variable, i);
                 executeForLoopBody();
+
+                if (breakFlag) break;
+
+                if (continueFlag) {
+                    continueFlag = false;
+                    continue;
+                }
             }
         } else {
             for (BigDecimal i = start; i.compareTo(end) >= 0; i = i.add(step)) {
                 position = forLoopStartPosition;
                 checkType(i, type);
                 getCurrentScope().put(variable, i);
+
                 executeForLoopBody();
+
+                if (breakFlag) break;
+
+                if (continueFlag) {
+                    continueFlag = false;
+                    continue;
+                }
             }
         }
 
         exitScope();
+
+        breakFlag = false;
     }
 
     /**
