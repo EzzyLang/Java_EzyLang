@@ -153,6 +153,10 @@ public class Lexer {
             case "return" -> tokens.add(new Token(Token.RETURN, word, line, startColumn));
             case "in" -> tokens.add(new Token(Token.IN, word, line, startColumn));
             case "array" -> tokens.add(new Token(Token.ARRAY, word, line, startColumn));
+            case "break" -> tokens.add(new Token(Token.BREAK, word, line, startColumn));
+            case "continue" -> tokens.add(new Token(Token.CONTINUE, word, line, startColumn));
+            case "while" -> tokens.add(new Token(Token.WHILE, word, line, startColumn));
+            case "as" -> tokens.add(new Token(Token.AS, word, line, startColumn));
             default -> tokens.add(new Token(Token.IDENTIFIER, word, line, startColumn));
         }
     }

@@ -226,7 +226,7 @@ public class Parser {
 
         // Register the 'isEmpty' function for ArrayLists
         registerBuiltinFunction("isEmpty", ArrayList.class, (context, args) ->
-            ((List<Object>) context).isEmpty());
+                ((List<Object>) context).isEmpty());
 
         // Register the 'removeAll' function for ArrayLists
         registerBuiltinFunction("removeAll", ArrayList.class, (context, args) -> {
@@ -302,6 +302,7 @@ public class Parser {
         switch (currentPosition().getToken()) {
             case Token.PRINT, Token.PRINTLN -> printStatement();
             case Token.FOR -> forStatement();
+            case Token.WHILE -> whileStatement();
             case Token.IF -> ifStatement();
             case Token.FUNC -> functionDeclaration();
             case Token.IDENTIFIER, Token.DOLLAR -> {
@@ -320,6 +321,27 @@ public class Parser {
 
         }
     }
+
+    private void whileStatement() throws ParseException {
+        consume(Token.WHILE);
+        consume(Token.LEFT_PAREN);
+        int conditionPosition = position;
+
+        while (evaluateCondition()) {
+            consume(Token.RIGHT_PAREN);
+
+            enterScope();
+            executeConditionalBlock();
+            exitScope();
+
+            position = conditionPosition;
+        }
+
+        consume(Token.RIGHT_PAREN);
+        skipConditionalBlock();
+    }
+
+
 
     /**
      * Parses and handles method calls using the '.' operator.
@@ -901,8 +923,7 @@ public class Parser {
         // Determine if iterating over an array or a range
         if (currentPosition().getToken().equals(Token.IDENTIFIER)) {
             iterateOverArray(variable, type);
-        } else if (currentPosition().getToken().equals(Token.NUMBER_LITERAL) ||
-                currentPosition().getToken().equals(Token.DOT_LENGTH)) {
+        } else if (currentPosition().getToken().equals(Token.NUMBER_LITERAL)) {
             iterateOverRange(variable, type);
         } else {
             throw unexpectedTokenException("Expected identifier or number literal after 'in'");
@@ -996,22 +1017,7 @@ public class Parser {
      * @throws ParseException If a syntax error is encountered during parsing.
      */
     private BigDecimal getRangeStart() throws ParseException {
-        if (currentPosition().getToken().equals(Token.DOT_LENGTH)) {
-            consume(Token.DOT_LENGTH);
-            String arrayVariable = consume(Token.IDENTIFIER).getValue();
-
-            Object arrayObject = getVariableValue(arrayVariable);
-            if (!(arrayObject instanceof List)) {
-                throw new ParseException(fileName, "Variable '" + arrayVariable + "' is not an array",
-                        currentPosition().getLine(),
-                        currentPosition().getColumn(),
-                        getCurrentLine());
-            }
-
-            return new BigDecimal(((List<?>) arrayObject).size());
-        } else {
-            return expressionNumber();
-        }
+        return expressionNumber();
     }
 
     /**
@@ -1478,16 +1484,6 @@ public class Parser {
                 if (currentPosition().getToken().equals(Token.LEFT_PAREN)) {
                     yield functionCall(identifier);
                 }
-                // Handle method calls on objects
-                else if (currentPosition().getToken().equals(Token.DOT)) {
-                    Object value = getVariableValue(identifier);
-
-                    consume(Token.DOT);
-                    String methodName = consume(Token.IDENTIFIER).getValue();
-                    List<Object> args = parseArguments();
-
-                    yield handleMethodCall(value, methodName, args);
-                }
                 // Handle array indexing
                 else if (currentPosition().getToken().equals(Token.LEFT_BRACKET)) {
                     List<Integer> indices = new ArrayList<>();
@@ -1497,6 +1493,16 @@ public class Parser {
                         consume(Token.RIGHT_BRACKET);
                     }
                     yield getVariableValueAtIndex(identifier, indices);
+                }
+                // Handle method calls on objects
+                else if (currentPosition().getToken().equals(Token.DOT)) {
+                    Object value = getVariableValue(identifier);
+
+                    consume(Token.DOT);
+                    String methodName = consume(Token.IDENTIFIER).getValue();
+                    List<Object> args = parseArguments();
+
+                    yield handleMethodCall(value, methodName, args);
                 } else {
                     for (Map<String, Object> scope : scopes) {
                         if (scope.containsKey(identifier)) {

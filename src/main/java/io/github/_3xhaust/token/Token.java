@@ -84,7 +84,6 @@ public class Token {
 
     // Loop
     public static final String IN = "in"; // Used in for-in loops
-    public static final String DOT_LENGTH = ".length"; // Array length property
 
     // Symbols
     public static final String LEFT_PAREN = "(";
