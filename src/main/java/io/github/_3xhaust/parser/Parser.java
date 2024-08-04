@@ -112,6 +112,7 @@ public class Parser {
         // Pre-parse function declarations for later calls
         preParseFunctions();
 
+        //tokens.forEach(token -> System.out.println(token.getToken()));
     }
 
     /**
@@ -1797,7 +1798,8 @@ public class Parser {
         Object left = arithmeticExpression();
 
         while (isExpressionOperator(currentPosition().getToken()) ||
-                currentPosition().getToken().equals(Token.IS)) {
+                currentPosition().getToken().equals(Token.IS) ||
+                currentPosition().getToken().equals(Token.AS)) {
 
             Token operator = currentPosition();
             consume(operator.getToken());
@@ -1805,12 +1807,50 @@ public class Parser {
             if (operator.getToken().equals(Token.IS)) {
                 String type = consume(currentPosition().getToken()).getToken();
                 left = evaluateIs(left, type);
+            } else if(operator.getToken().equals(Token.AS)) {
+                String type = consume(currentPosition().getToken()).getToken();
+                left = evaluateAs(left, type);
             } else {
                 Object right = arithmeticExpression();
                 left = evaluateExpressionOperation(left, right, operator.getToken());
             }
         }
         return left;
+    }
+
+    private Object evaluateAs(Object value, String targetType) throws ParseException {
+        try {
+            return switch (targetType) {
+                case Token.NUMBER -> {
+                    if (value instanceof String) {
+                        yield new BigDecimal((String) value);
+                    } else if (value instanceof Character) {
+                        yield new BigDecimal((Character) value);
+                    } else {
+                        throw new IllegalArgumentException("Cannot convert to number");
+                    }
+                }
+                case Token.STRING -> String.valueOf(value);
+                case Token.BOOLEAN -> {
+                    if (value instanceof String) {
+                        yield Boolean.parseBoolean((String) value);
+                    } else {
+                        throw new IllegalArgumentException("Cannot convert to boolean");
+                    }
+                }
+                case Token.CHAR -> {
+                    if (value instanceof String && ((String) value).length() == 1) {
+                        yield ((String) value).charAt(0);
+                    } else {
+                        throw new IllegalArgumentException("Cannot convert to char");
+                    }
+                }
+                default -> throw new IllegalArgumentException("Unsupported target type: " + targetType);
+            };
+        } catch (IllegalArgumentException e) {
+            throw new ParseException(fileName, "Type conversion error: " + e.getMessage(),
+                    currentPosition().getLine(), currentPosition().getColumn(), getCurrentLine());
+        }
     }
 
     /**
