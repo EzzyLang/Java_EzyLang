@@ -400,7 +400,7 @@ public class Lexer {
         }
         line++;
         position += 2; // skip */
-        column = 1; // 주석 종료 후 column 초기화
+        column = 1;
     }
 
     private char peek(int offset) {

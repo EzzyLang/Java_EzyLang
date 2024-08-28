@@ -414,7 +414,7 @@ public class Parser {
         int functionBodyStart = position;
 
         int braceCount = 1;
-        while (braceCount > 0 && !isAtEnd()) {
+        while (!isAtEnd()) {
             if (currentPosition().getToken().equals(Token.RIGHT_BRACE)) {
                 braceCount--;
             }
@@ -1022,11 +1022,7 @@ public class Parser {
                 executeForLoopBody();
 
                 if (breakFlag) break;
-
-                if (continueFlag) {
-                    continueFlag = false;
-                    continue;
-                }
+                if (continueFlag) continueFlag = false;
             }
         } else {
             for (BigDecimal i = start; i.compareTo(end) >= 0; i = i.add(step)) {
@@ -1037,11 +1033,7 @@ public class Parser {
                 executeForLoopBody();
 
                 if (breakFlag) break;
-
-                if (continueFlag) {
-                    continueFlag = false;
-                    continue;
-                }
+                if (continueFlag) continueFlag = false;
             }
         }
 
@@ -1512,6 +1504,7 @@ public class Parser {
                     yield literal;
                 }
             }
+            //case Token.CHAR_LITERAL ->
             case Token.LEFT_PAREN -> {
                 consume(Token.LEFT_PAREN);
                 Object result = expression();
