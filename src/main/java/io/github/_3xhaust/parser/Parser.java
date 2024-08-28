@@ -412,12 +412,15 @@ public class Parser {
 
         consume(Token.LEFT_BRACE);
         int functionBodyStart = position;
-
         int braceCount = 1;
-        while (!isAtEnd()) {
-            if (currentPosition().getToken().equals(Token.RIGHT_BRACE)) {
+
+        while (braceCount > 0 && !isAtEnd()) {
+            if (currentPosition().getToken().equals(Token.LEFT_BRACE)) {
+                braceCount++;
+            } else if (currentPosition().getToken().equals(Token.RIGHT_BRACE)) {
                 braceCount--;
             }
+
             position++;
         }
 
