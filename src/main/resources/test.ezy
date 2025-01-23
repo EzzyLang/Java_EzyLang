@@ -1,0 +1,7 @@
+test: number = 2
+
+if (test as string is string) {
+    print("test is string")
+} else {
+    print("test is not string")
+}
