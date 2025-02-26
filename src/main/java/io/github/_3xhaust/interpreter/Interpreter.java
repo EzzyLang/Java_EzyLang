@@ -1,27 +1,109 @@
 package io.github._3xhaust.interpreter;
 
-import io.github._3xhaust.ezylang.exception.ParseException;
-import io.github._3xhaust.ezylang.lexer.Token;
-import io.github._3xhaust.ezylang.parser.Parser.*;
-
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.github._3xhaust.ezylang.exception.ParseException;
+import io.github._3xhaust.ezylang.lexer.Lexer;
+import io.github._3xhaust.ezylang.lexer.Token;
+import io.github._3xhaust.ezylang.parser.Parser;
+import io.github._3xhaust.ezylang.parser.Parser.ArrayAccess;
+import io.github._3xhaust.ezylang.parser.Parser.ArrayLiteral;
+import io.github._3xhaust.ezylang.parser.Parser.AssignmentStatement;
+import io.github._3xhaust.ezylang.parser.Parser.BinaryExpr;
+import io.github._3xhaust.ezylang.parser.Parser.Block;
+import io.github._3xhaust.ezylang.parser.Parser.BreakStatement;
+import io.github._3xhaust.ezylang.parser.Parser.ConstantDecl;
+import io.github._3xhaust.ezylang.parser.Parser.ContinueStatement;
+import io.github._3xhaust.ezylang.parser.Parser.ExpressionStatement;
+import io.github._3xhaust.ezylang.parser.Parser.ForStatement;
+import io.github._3xhaust.ezylang.parser.Parser.FunctionCall;
+import io.github._3xhaust.ezylang.parser.Parser.FunctionDecl;
+import io.github._3xhaust.ezylang.parser.Parser.Identifier;
+import io.github._3xhaust.ezylang.parser.Parser.IfStatement;
+import io.github._3xhaust.ezylang.parser.Parser.ImportItem;
+import io.github._3xhaust.ezylang.parser.Parser.ImportStatement;
+import io.github._3xhaust.ezylang.parser.Parser.InterpolatedString;
+import io.github._3xhaust.ezylang.parser.Parser.Literal;
+import io.github._3xhaust.ezylang.parser.Parser.MethodCall;
+import io.github._3xhaust.ezylang.parser.Parser.Node;
+import io.github._3xhaust.ezylang.parser.Parser.PrintStatement;
+import io.github._3xhaust.ezylang.parser.Parser.Program;
+import io.github._3xhaust.ezylang.parser.Parser.SwitchCase;
+import io.github._3xhaust.ezylang.parser.Parser.SwitchStatement;
+import io.github._3xhaust.ezylang.parser.Parser.TypeCastExpr;
+import io.github._3xhaust.ezylang.parser.Parser.TypeCheckExpr;
+import io.github._3xhaust.ezylang.parser.Parser.UnaryExpr;
+import io.github._3xhaust.ezylang.parser.Parser.VariableDecl;
+import io.github._3xhaust.ezylang.parser.Parser.Visitor;
+import io.github._3xhaust.ezylang.parser.Parser.WhileStatement;
+
 public class Interpreter implements Visitor<Object> {
     private final Map<String, Object> variables = new HashMap<>();
     private final Map<String, Object> constants = new HashMap<>();
+    private final Map<String, FunctionDecl> functions = new HashMap<>();
+    private final Map<String, NativeFunction> nativeFunctions = new HashMap<>();
+    private final Map<String, Interpreter> loadedModules = new HashMap<>();
     private final String fileName;
     private final List<String> lines;
+
+    private interface NativeFunction {
+        Object execute(List<Object> args) throws ParseException;
+    }
 
     public Interpreter(String fileName, String sourceCode) {
         this.fileName = fileName;
         this.lines = List.of(sourceCode.split("\n"));
+        registerNativeFunctions();
     }
 
-    public void interpret(Node node) throws ParseException {
-        node.accept(this);
+    public void interpret(Program program) throws ParseException {
+        for (Node statement : program.getStatements()) {
+            if (statement instanceof FunctionDecl) {
+                statement.accept(this);
+            }
+        }
+
+        for (Node statement : program.getStatements()) {
+            if (!(statement instanceof FunctionDecl)) {
+                statement.accept(this);
+            }
+        }
+    }
+
+    private Interpreter loadModule(String moduleName) throws ParseException {
+        if (loadedModules.containsKey(moduleName)) {
+            return loadedModules.get(moduleName);
+        }
+
+        try {
+            Path currentDir = Paths.get(fileName).getParent();
+            String moduleFileName = moduleName + ".ezy";
+            Path modulePath = currentDir != null ? currentDir.resolve(moduleFileName) : Paths.get(moduleFileName);
+
+            String sourceCode = new String(Files.readAllBytes(modulePath));
+            Lexer lexer = new Lexer(sourceCode);
+            List<Token> tokens = lexer.scanTokens();
+            Parser parser = new Parser(modulePath.toString(), sourceCode, tokens);
+            Program program = parser.parse();
+
+            Interpreter moduleInterpreter = new Interpreter(modulePath.toString(), sourceCode);
+            moduleInterpreter.interpret(program);
+            loadedModules.put(moduleName, moduleInterpreter);
+            return moduleInterpreter;
+        } catch (Exception e) {
+            throw new ParseException(fileName, "Failed to load module '" + moduleName + "': " + e.getMessage(), 1, 1, "");
+        }
+    }
+
+    private void registerNativeFunctions() {
     }
 
     @Override
@@ -122,22 +204,23 @@ public class Interpreter implements Visitor<Object> {
     @Override
     public Object visitArrayAccess(ArrayAccess arrayAccess) throws ParseException {
         Object index = arrayAccess.getIndex().accept(this);
-        Object array = variables.get(arrayAccess.getIdentifier());
+        String identifier = arrayAccess.getIdentifier();
+        Object array = variables.get(identifier);
         if (array == null) {
-            array = constants.get(arrayAccess.getIdentifier());
+            array = constants.get(identifier);
         }
         if (array == null) {
-            throw error(arrayAccess, "Undefined variable '" + arrayAccess.getIdentifier() + "'");
+            throw error(arrayAccess, "Undefined variable '" + identifier + "'");
         }
         if (!(array instanceof List<?> list)) {
-            throw error(arrayAccess, "Variable '" + arrayAccess.getIdentifier() + "' is not an array");
+            throw error(arrayAccess, "Variable '" + identifier + "' is not an array");
         }
         if (!(index instanceof Double)) {
             throw error(arrayAccess, "Array index must be a number");
         }
         int idx = ((Double) index).intValue();
         if (idx < 0 || idx >= list.size()) {
-            throw error(arrayAccess, "Array Index out of bounds");
+            throw error(arrayAccess, "Array index out of bounds");
         }
         return list.get(idx);
     }
@@ -195,6 +278,237 @@ public class Interpreter implements Visitor<Object> {
         }
 
         return null;
+    }
+
+    @Override
+    public Object visitFunctionDecl(FunctionDecl functionDecl) throws ParseException {
+        functions.put(functionDecl.getName(), functionDecl);
+        return null;
+    }
+
+    public Object visitFunctionCall(FunctionCall functionCall) throws ParseException {
+        String name = functionCall.getName();
+        FunctionDecl function = functions.get(name);
+        List<Node> arguments = functionCall.getArguments();
+        List<String> paramNames = function.getParamNames();
+        List<Token> paramTypes = function.getParamTypes();
+        List<Boolean> isArrayTypes = function.getIsArrayTypes();
+
+        if (arguments.size() != paramNames.size()) {
+            throw error(functionCall, "Expected " + paramNames.size() + " arguments but got " + arguments.size());
+        }
+
+        for (int i = 0; i < paramNames.size(); i++) {
+            Object value = arguments.get(i).accept(this);
+            String expectedType = paramTypes.get(i).getValue();
+            boolean isArray = isArrayTypes.get(i);
+
+            if (isArray && !(value instanceof List<?>)) {
+                throw error(functionCall, "Expected '" + expectedType + "[]' but got '" + getTypeName(value) + "'");
+            } else if (!isArray && value instanceof List<?>) {
+                throw error(functionCall, "Expected '" + expectedType + "' but got array");
+            } else if (!isArray && !expectedType.equals(getTypeName(value))) {
+                throw error(functionCall, "Expected '" + expectedType + "' but got '" + getTypeName(value) + "'");
+            }
+        }
+
+        Map<String, Object> previousVariables = new HashMap<>(variables);
+
+        for (int i = 0; i < paramNames.size(); i++) {
+            Object value = arguments.get(i).accept(this);
+            variables.put(paramNames.get(i), value);
+        }
+
+        Object result = function.getBody().accept(this);
+
+        variables.clear();
+        variables.putAll(previousVariables);
+
+        return result;
+    }
+
+    private String getTypeName(Object value) {
+        if (value instanceof Double) return "number";
+        if (value instanceof String) return "string";
+        if (value instanceof Boolean) return "boolean";
+        if (value instanceof List<?>) return "array";
+        return "unknown";
+    }
+
+    @Override
+    public Object visitMethodCall(MethodCall methodCall) throws ParseException {
+        String objectName = methodCall.getObjectName();
+        String methodName = methodCall.getMethodName();
+        List<Node> arguments = methodCall.getArguments();
+        Node objectNode = methodCall.getObjectNode();
+
+        Object object;
+        if (objectName != null) {
+            object = variables.get(objectName);
+            if (object == null) {
+                throw error(methodCall, "Undefined variable '" + objectName + "'");
+            }
+        } else if (objectNode != null) {
+            object = objectNode.accept(this);
+        } else {
+            throw error(methodCall, "No object specified for method call");
+        }
+
+        if (methodName.equals("length") && object instanceof List<?>) {
+            if (!arguments.isEmpty()) {
+                throw error(methodCall, "Method 'length' does not take any arguments");
+            }
+            return (double) ((List<?>) object).size();
+        }
+        if (methodName.equals("repeat") && object instanceof String) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'repeat' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            if (!(arg instanceof Double)) {
+                throw error(methodCall, "Argument must be a number");
+            }
+            int count = ((Double) arg).intValue();
+            return String.valueOf(object).repeat(count);
+        }
+        if (methodName.equals("charAt") && object instanceof String) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'charAt' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            if (!(arg instanceof Double)) {
+                throw error(methodCall, "Argument must be a number");
+            }
+            int index = ((Double) arg).intValue();
+            if (index < 0 || index >= ((String) object).length()) {
+                throw error(methodCall, "Index out of bounds");
+            }
+            return ((String) object).charAt(index);
+        }
+        if (methodName.equals("contains") && object instanceof List<?>) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'contains' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            return ((List<?>) object).contains(arg);
+        }
+        if (methodName.equals("indexOf") && object instanceof List<?>) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'indexOf' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            return (double) ((List<?>) object).indexOf(arg);
+        }
+        if (methodName.equals("lastIndexOf") && object instanceof List<?>) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'lastIndexOf' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            return (double) ((List<?>) object).lastIndexOf(arg);
+        }
+        if (methodName.equals("isEmpty") && object instanceof List<?>) {
+            if (!arguments.isEmpty()) {
+                throw error(methodCall, "Method 'isEmpty' does not take any arguments");
+            }
+            return ((List<?>) object).isEmpty();
+        }
+        if (methodName.equals("isNotEmpty") && object instanceof List<?>) {
+            if (!arguments.isEmpty()) {
+                throw error(methodCall, "Method 'isNotEmpty' does not take any arguments");
+            }
+            return !((List<?>) object).isEmpty();
+        }
+        if (methodName.equals("clear") && object instanceof List<?>) {
+            if (!arguments.isEmpty()) {
+                throw error(methodCall, "Method 'clear' does not take any arguments");
+            }
+            ((List<?>) object).clear();
+            return null;
+        }
+        if (methodName.equals("addAll") && object instanceof List<?>) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'addAll' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            if (!(arg instanceof List<?>)) {
+                throw error(methodCall, "Argument must be an array");
+            }
+            ((List<Object>) object).addAll((List<?>) arg);
+            return null;
+        }
+        if (methodName.equals("remove") && object instanceof List<?>) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'remove' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            return ((List<?>) object).remove(arg);
+        }
+        if (methodName.equals("removeAt") && object instanceof List<?>) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'removeAt' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            if (!(arg instanceof Double)) {
+                throw error(methodCall, "Argument must be a number");
+            }
+            int index = ((Double) arg).intValue();
+            if (index < 0 || index >= ((List<?>) object).size()) {
+                throw error(methodCall, "Index out of bounds");
+            }
+            return ((List<?>) object).remove(index);
+        }
+        if (methodName.equals("reverse") && object instanceof List<?>) {
+            if (!arguments.isEmpty()) {
+                throw error(methodCall, "Method 'reverse' does not take any arguments");
+            }
+            Collections.reverse((List<?>) object);
+            return null;
+        }
+        if (methodName.equals("sort") && object instanceof List<?>) {
+            if (!arguments.isEmpty()) {
+                throw error(methodCall, "Method 'sort' does not take any arguments");
+            }
+            if (((List<?>) object).isEmpty()) {
+                return null;
+            }
+            if (((List<?>) object).get(0) instanceof Double) {
+                Collections.sort((List<Double>) object);
+            } else if (((List<?>) object).get(0) instanceof String) {
+                Collections.sort((List<String>) object);
+            } else {
+                throw error(methodCall, "Cannot sort array of this type");
+            }
+            return null;
+        }
+        if (methodName.equals("shuffle") && object instanceof List<?>) {
+            if (!arguments.isEmpty()) {
+                throw error(methodCall, "Method 'shuffle' does not take any arguments");
+            }
+            Collections.shuffle((List<?>) object);
+            return null;
+        }
+        if (methodName.equals("join") && object instanceof List<?>) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'join' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            if (!(arg instanceof String)) {
+                throw error(methodCall, "Argument must be a string");
+            }
+            return String.join((String) arg, (List<String>) object);
+        }
+        if (methodName.equals("split") && object instanceof String) {
+            if (arguments.size() != 1) {
+                throw error(methodCall, "Method 'split' takes exactly one argument");
+            }
+            Object arg = arguments.get(0).accept(this);
+            if (!(arg instanceof String)) {
+                throw error(methodCall, "Argument must be a string");
+            }
+            return Arrays.asList(((String) object).split((String) arg));
+        }
+
+        throw error(methodCall, "Undefined method '" + methodName + "'");
     }
 
     @Override
@@ -356,70 +670,192 @@ public class Interpreter implements Visitor<Object> {
 
     @Override
     public Object visitAssignmentStatement(AssignmentStatement assignmentStatement) throws ParseException {
-        String identifier = assignmentStatement.getIdentifier();
+        Node target = assignmentStatement.getTarget();
         Token operator = assignmentStatement.getOperator();
         Object value = assignmentStatement.getValue().accept(this);
 
-        if (!variables.containsKey(identifier)) {
-            if (constants.containsKey(identifier)) {
-                throw error(assignmentStatement, "Cannot reassign to constant '" + identifier + "'");
+        if (target instanceof Identifier identifierNode) {
+            String identifier = identifierNode.getName();
+            if (!variables.containsKey(identifier)) {
+                if (constants.containsKey(identifier)) {
+                    throw error(assignmentStatement, "Cannot reassign to constant '" + identifier + "'");
+                }
+                throw error(assignmentStatement, "Undefined variable '" + identifier + "'");
             }
-            throw error(assignmentStatement, "Undefined variable '" + identifier + "'");
+
+            Object currentValue = variables.get(identifier);
+            Object newValue;
+
+            switch (operator.getToken()) {
+                case EQUAL -> newValue = value;
+                case PLUS_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        newValue = (Double) currentValue + (Double) value;
+                    } else if (currentValue instanceof String || value instanceof String) {
+                        newValue = String.valueOf(currentValue) + value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '+=' operator");
+                    }
+                }
+                case MINUS_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        newValue = (Double) currentValue - (Double) value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '-=' operator");
+                    }
+                }
+                case ASTERISK_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        newValue = (Double) currentValue * (Double) value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '*=' operator");
+                    }
+                }
+                case SLASH_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        if ((Double) value == 0) {
+                            throw error(assignmentStatement, "Division by zero");
+                        }
+                        newValue = (Double) currentValue / (Double) value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '/=' operator");
+                    }
+                }
+                case PERCENT_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        if ((Double) value == 0) {
+                            throw error(assignmentStatement, "Modulo by zero");
+                        }
+                        newValue = (Double) currentValue % (Double) value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '%=' operator");
+                    }
+                }
+                default -> throw error(assignmentStatement, "Invalid assignment operator");
+            }
+
+            variables.put(identifier, newValue);
+        } else if (target instanceof ArrayAccess arrayAccess) {
+            String identifier = arrayAccess.getIdentifier();
+            Object indexObj = arrayAccess.getIndex().accept(this);
+            Boolean isConstant = constants.containsKey(identifier);
+            Object array = isConstant ? constants.get(identifier) : variables.get(identifier);
+            if (array == null) {
+                throw error(assignmentStatement, "Undefined array '" + identifier + "'");
+            }
+            if (isConstant) {
+                throw error(assignmentStatement, "Cannot reassign to constant array '" + identifier + "'");
+            }
+            if (!(array instanceof List<?> list)) {
+                throw error(assignmentStatement, "Variable '" + identifier + "' is not an array");
+            }
+            if (!(indexObj instanceof Double)) {
+                throw error(assignmentStatement, "Array index must be a number");
+            }
+            int index = ((Double) indexObj).intValue();
+            if (index < 0 || index >= list.size()) {
+                throw error(assignmentStatement, "Array index out of bounds");
+            }
+
+            Object currentValue = list.get(index);
+            Object newValue;
+
+            switch (operator.getToken()) {
+                case EQUAL -> newValue = value;
+                case PLUS_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        newValue = (Double) currentValue + (Double) value;
+                    } else if (currentValue instanceof String || value instanceof String) {
+                        newValue = String.valueOf(currentValue) + value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '+=' operator");
+                    }
+                }
+                case MINUS_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        newValue = (Double) currentValue - (Double) value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '-=' operator");
+                    }
+                }
+                case ASTERISK_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        newValue = (Double) currentValue * (Double) value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '*=' operator");
+                    }
+                }
+                case SLASH_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        if ((Double) value == 0) {
+                            throw error(assignmentStatement, "Division by zero");
+                        }
+                        newValue = (Double) currentValue / (Double) value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '/=' operator");
+                    }
+                }
+                case PERCENT_EQUAL -> {
+                    if (currentValue instanceof Double && value instanceof Double) {
+                        if ((Double) value == 0) {
+                            throw error(assignmentStatement, "Modulo by zero");
+                        }
+                        newValue = (Double) currentValue % (Double) value;
+                    } else {
+                        throw error(assignmentStatement, "Invalid operands for '%=' operator");
+                    }
+                }
+                default -> throw error(assignmentStatement, "Invalid assignment operator");
+            }
+
+            ((List<Object>) array).set(index, newValue);
+        } else {
+            throw error(assignmentStatement, "Invalid assignment target");
         }
 
-        Object currentValue = variables.get(identifier);
-        Object newValue;
-
-        switch (operator.getToken()) {
-            case EQUAL -> newValue = value;
-            case PLUS_EQUAL -> {
-                if (currentValue instanceof Double && value instanceof Double) {
-                    newValue = (Double) currentValue + (Double) value;
-                } else if (currentValue instanceof String || value instanceof String) {
-                    newValue = String.valueOf(currentValue) + value;
-                } else {
-                    throw error(assignmentStatement, "Invalid operands for '+=' operator");
-                }
-            }
-            case MINUS_EQUAL -> {
-                if (currentValue instanceof Double && value instanceof Double) {
-                    newValue = (Double) currentValue - (Double) value;
-                } else {
-                    throw error(assignmentStatement, "Invalid operands for '-=' operator");
-                }
-            }
-            case ASTERISK_EQUAL -> {
-                if (currentValue instanceof Double && value instanceof Double) {
-                    newValue = (Double) currentValue * (Double) value;
-                } else {
-                    throw error(assignmentStatement, "Invalid operands for '*=' operator");
-                }
-            }
-            case SLASH_EQUAL -> {
-                if (currentValue instanceof Double && value instanceof Double) {
-                    if ((Double) value == 0) {
-                        throw error(assignmentStatement, "Division by zero");
-                    }
-                    newValue = (Double) currentValue / (Double) value;
-                } else {
-                    throw error(assignmentStatement, "Invalid operands for '/=' operator");
-                }
-            }
-            case PERCENT_EQUAL -> {
-                if (currentValue instanceof Double && value instanceof Double) {
-                    if ((Double) value == 0) {
-                        throw error(assignmentStatement, "Modulo by zero");
-                    }
-                    newValue = (Double) currentValue % (Double) value;
-                } else {
-                    throw error(assignmentStatement, "Invalid operands for '%=' operator");
-                }
-            }
-            default -> throw error(assignmentStatement, "Invalid assignment operator");
-        }
-
-        variables.put(identifier, newValue);
         return null;
+    }
+
+    @Override
+    public Object visitExpressionStatement(ExpressionStatement expressionStatement) throws ParseException {
+        Object result = expressionStatement.getExpression().accept(this);
+        return result;
+    }
+
+    @Override
+    public Object visitImportStatement(ImportStatement importStatement) throws ParseException {
+        String moduleName = importStatement.getModuleName();
+        Interpreter module = loadModule(moduleName);
+        List<ImportItem> items = importStatement.getItems();
+
+        for (ImportItem item : items) {
+            String name = item.getName();
+            String alias = item.getAlias() != null ? item.getAlias() : name;
+
+            if (name.equals("*")) {
+                variables.putAll(module.variables);
+                constants.putAll(module.constants);
+                functions.putAll(module.functions);
+            } else {
+                if (module.variables.containsKey(name)) {
+                    variables.put(alias, module.variables.get(name));
+                } else if (module.constants.containsKey(name)) {
+                    constants.put(alias, module.constants.get(name));
+                } else if (module.functions.containsKey(name)) {
+                    functions.put(alias, module.functions.get(name));
+                } else {
+                    throw error(importStatement, "Item '" + name + "' not found in module '" + moduleName + "'");
+                }
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public Object visitReturnStatement(Parser.ReturnStatement returnStatement) throws ParseException {
+        Object value = returnStatement.getValue().accept(this);
+        return value;
     }
 
     @Override

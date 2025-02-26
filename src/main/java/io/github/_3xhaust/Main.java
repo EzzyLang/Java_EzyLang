@@ -28,10 +28,10 @@ public class Main {
             List<Token> tokens = lexer.scanTokens();
 
             Parser parser = new Parser(fileName, input, tokens);
-            Parser.Node node = parser.parse();
+            Parser.Program program = parser.parse();
 
             Interpreter interpreter = new Interpreter(fileName, input);
-            interpreter.interpret(node);
+            interpreter.interpret(program);
         } catch (IOException e) {
             System.err.println(e.getMessage());
             System.exit(1);
@@ -41,7 +41,7 @@ public class Main {
         }
     }
 
-    private static String readFile(String fileName) throws IOException {
+    public static String readFile(String fileName) throws IOException {
         StringBuilder input = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new FileReader(fileName, StandardCharsets.UTF_8))) {
             String line;
