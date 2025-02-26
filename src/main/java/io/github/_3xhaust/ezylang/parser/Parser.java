@@ -33,10 +33,54 @@ public class Parser {
     }
 
     private Node parseStatement() throws ParseException {
+        if (match(Token.TokenType.FUNC)) {
+            return parseFunctionDecl();
+        }
         if (match(Token.TokenType.IDENTIFIER)) {
-            if (check(Token.TokenType.COLON)) return parseVariableDecl(false);
+            Token identifierToken = previous();
+            if (match(Token.TokenType.LEFT_BRACKET)) {
+                Node index = parseExpression();
+                consume(Token.TokenType.RIGHT_BRACKET, "Expected ']' after index expression");
+                Node target = new ArrayAccess(identifierToken.getValue(), index, identifierToken.getLine(), identifierToken.getColumn());
 
-            return parseAssignment();
+                if (match(Token.TokenType.EQUAL, Token.TokenType.PLUS_EQUAL,
+                        Token.TokenType.MINUS_EQUAL, Token.TokenType.ASTERISK_EQUAL,
+                        Token.TokenType.SLASH_EQUAL, Token.TokenType.PERCENT_EQUAL)) {
+                    Token operator = previous();
+                    Node value = parseExpression();
+                    return new AssignmentStatement(target, operator, value, target.getLine(), target.getColumn());
+                } else {
+                    return new ExpressionStatement(target, target.getLine(), target.getColumn());
+                }
+            }
+            else if (check(Token.TokenType.LEFT_PAREN)) {
+                return parseFunctionCall();
+            }
+            else if (match(Token.TokenType.DOT)) {
+                Token methodToken = consume(Token.TokenType.IDENTIFIER, "Expected method name after '.'");
+                consume(Token.TokenType.LEFT_PAREN, "Expected '(' after method name");
+                List<Node> arguments = new ArrayList<>();
+                if (!check(Token.TokenType.RIGHT_PAREN)) {
+                    do {
+                        arguments.add(parseExpression());
+                    } while (match(Token.TokenType.COMMA));
+                }
+                consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
+                Node methodCall = new MethodCall(identifierToken.getValue(), methodToken.getValue(), arguments, null, identifierToken.getLine(), identifierToken.getColumn());
+                return new ExpressionStatement(methodCall, methodCall.getLine(), methodCall.getColumn());
+            }
+            else if (check(Token.TokenType.COLON)) {
+                return parseVariableDecl(false);
+            }
+            else if (match(Token.TokenType.EQUAL, Token.TokenType.PLUS_EQUAL,
+                    Token.TokenType.MINUS_EQUAL, Token.TokenType.ASTERISK_EQUAL,
+                    Token.TokenType.SLASH_EQUAL, Token.TokenType.PERCENT_EQUAL)) {
+                return parseAssignment();
+            }
+            else {
+                Node expr = new Identifier(identifierToken.getValue(), identifierToken.getLine(), identifierToken.getColumn());
+                return new ExpressionStatement(expr, expr.getLine(), expr.getColumn());
+            }
         }
         if (match(Token.TokenType.DOLLAR)) {
             return parseVariableDecl(true);
@@ -68,7 +112,57 @@ public class Parser {
             return parseWhileStatement();
         }
 
-        throw new ParseException(fileName, "Unexpected statement", peek().getLine(), peek().getColumn(), getErrorLine(peek().getLine()));
+        Node expr = parseExpression();
+        return new ExpressionStatement(expr, expr.getLine(), expr.getColumn());
+    }
+
+    private Node parseFunctionDecl() throws ParseException {
+        String name = consume(Token.TokenType.IDENTIFIER, "Expected function name").getValue();
+        consume(Token.TokenType.LEFT_PAREN, "Expected '(' after function name");
+
+        List<String> paramNames = new ArrayList<>();
+        List<Token> paramTypes = new ArrayList<>();
+        List<Boolean> isArrayTypes = new ArrayList<>();
+        if (!check(Token.TokenType.RIGHT_PAREN)) {
+            do {
+                String paramName = consume(Token.TokenType.IDENTIFIER, "Expected parameter name").getValue();
+                consume(Token.TokenType.COLON, "Expected ':' after parameter name");
+                Token paramType = peek();
+                advance();
+                boolean isArray = isArrayType();
+                paramNames.add(paramName);
+                paramTypes.add(paramType);
+                isArrayTypes.add(isArray);
+            } while (match(Token.TokenType.COMMA));
+        }
+        consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after parameters");
+
+        Token returnType = null;
+        Boolean isReturnArray = false;
+        if (match(Token.TokenType.COLON)) {
+            returnType = peek();
+            advance();
+            isReturnArray = isArrayType();
+        }
+
+        Node body = parseStatement();
+        return new FunctionDecl(name, paramNames, paramTypes, isArrayTypes, returnType, isReturnArray, body, previous().getLine(), previous().getColumn());
+    }
+
+    private Node parseFunctionCall() throws ParseException {
+        Token nameToken = previous();
+        String name = nameToken.getValue();
+        consume(Token.TokenType.LEFT_PAREN, "Expected '(' after function name");
+
+        List<Node> arguments = new ArrayList<>();
+        if (!check(Token.TokenType.RIGHT_PAREN)) {
+            do {
+                arguments.add(parseExpression());
+            } while (match(Token.TokenType.COMMA));
+        }
+        consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
+
+        return new FunctionCall(name, arguments, nameToken.getLine(), nameToken.getColumn());
     }
 
     private Node parseSwitchStatement() throws ParseException {
@@ -124,8 +218,7 @@ public class Parser {
     }
 
     private Node parseAssignment() throws ParseException {
-        Token identifierToken = previous();
-        String identifier = identifierToken.getValue();
+        Node target = parsePrimary();
 
         Token operator;
         if (match(Token.TokenType.EQUAL)) {
@@ -140,9 +233,11 @@ public class Parser {
 
         Node value = parseExpression();
 
-        return new AssignmentStatement(identifier, operator, value,
-                identifierToken.getLine(),
-                identifierToken.getColumn());
+        if (!(target instanceof Identifier) && !(target instanceof ArrayAccess)) {
+            throw new ParseException(fileName, "Invalid assignment target", target.getLine(), target.getColumn(), getErrorLine(target.getLine()));
+        }
+
+        return new AssignmentStatement(target, operator, value, target.getLine(), target.getColumn());
     }
 
     private Node parseBlock() throws ParseException {
@@ -363,18 +458,75 @@ public class Parser {
         }
         if (match(Token.TokenType.NUMBER_LITERAL)) {
             Token token = previous();
-            return new Literal(Double.parseDouble(token.getValue()), "number", token.getLine(), token.getColumn());
+            Node literal = new Literal(Double.parseDouble(token.getValue()), "number", token.getLine(), token.getColumn());
+            if (match(Token.TokenType.DOT)) {
+                Token methodToken = consume(Token.TokenType.IDENTIFIER, "Expected method name after '.'");
+                consume(Token.TokenType.LEFT_PAREN, "Expected '(' after method name");
+                List<Node> arguments = new ArrayList<>();
+                if (!check(Token.TokenType.RIGHT_PAREN)) {
+                    do {
+                        arguments.add(parseExpression());
+                    } while (match(Token.TokenType.COMMA));
+                }
+                consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
+                return new MethodCall(null, methodToken.getValue(), arguments, literal, token.getLine(), token.getColumn());
+            }
+            return literal;
         }
         if (match(Token.TokenType.STRING_LITERAL)) {
             Token token = previous();
-            return new Literal(token.getValue(), "string", token.getLine(), token.getColumn());
+            Node literal = new Literal(token.getValue(), "string", token.getLine(), token.getColumn());
+            if (match(Token.TokenType.DOT)) {
+                Token methodToken = consume(Token.TokenType.IDENTIFIER, "Expected method name after '.'");
+                consume(Token.TokenType.LEFT_PAREN, "Expected '(' after method name");
+                List<Node> arguments = new ArrayList<>();
+                if (!check(Token.TokenType.RIGHT_PAREN)) {
+                    do {
+                        arguments.add(parseExpression());
+                    } while (match(Token.TokenType.COMMA));
+                }
+                consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
+                return new MethodCall(null, methodToken.getValue(), arguments, literal, token.getLine(), token.getColumn());
+            }
+            return literal;
         }
         if (match(Token.TokenType.BOOLEAN_LITERAL)) {
             Token token = previous();
-            return new Literal(Boolean.parseBoolean(token.getValue()), "boolean", token.getLine(), token.getColumn());
+            Node literal = new Literal(Boolean.parseBoolean(token.getValue()), "boolean", token.getLine(), token.getColumn());
+            if (match(Token.TokenType.DOT)) {
+                Token methodToken = consume(Token.TokenType.IDENTIFIER, "Expected method name after '.'");
+                consume(Token.TokenType.LEFT_PAREN, "Expected '(' after method name");
+                List<Node> arguments = new ArrayList<>();
+                if (!check(Token.TokenType.RIGHT_PAREN)) {
+                    do {
+                        arguments.add(parseExpression());
+                    } while (match(Token.TokenType.COMMA));
+                }
+                consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
+                return new MethodCall(null, methodToken.getValue(), arguments, literal, token.getLine(), token.getColumn());
+            }
+            return literal;
         }
         if (match(Token.TokenType.IDENTIFIER)) {
             Token token = previous();
+
+            if (match(Token.TokenType.LEFT_BRACKET)) {
+                Node index = parseExpression();
+                consume(Token.TokenType.RIGHT_BRACKET, "Expected ']' after index expression");
+                return new ArrayAccess(token.getValue(), index, token.getLine(), token.getColumn());
+            }
+            if (match(Token.TokenType.DOT)) {
+                Token methodToken = consume(Token.TokenType.IDENTIFIER, "Expected method name after '.'");
+                consume(Token.TokenType.LEFT_PAREN, "Expected '(' after method name");
+                List<Node> arguments = new ArrayList<>();
+                if (!check(Token.TokenType.RIGHT_PAREN)) {
+                    do {
+                        arguments.add(parseExpression());
+                    } while (match(Token.TokenType.COMMA));
+                }
+                consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
+                return new MethodCall(token.getValue(), methodToken.getValue(), arguments, null, token.getLine(), token.getColumn());
+            }
             return new Identifier(token.getValue(), token.getLine(), token.getColumn());
         }
 
@@ -491,6 +643,14 @@ public class Parser {
         R visitSwitchCase(SwitchCase switchCase) throws ParseException;
 
         R visitSwitchStatement(SwitchStatement switchStatement) throws ParseException;
+
+        R visitFunctionDecl(FunctionDecl functionDecl) throws ParseException;
+
+        R visitFunctionCall(FunctionCall functionCall) throws ParseException;
+
+        R visitMethodCall(MethodCall methodCall) throws ParseException;
+
+        R visitExpressionStatement(ExpressionStatement expressionStatement) throws ParseException;
     }
 
     @Getter
@@ -835,12 +995,12 @@ public class Parser {
 
     @Getter
     public static class AssignmentStatement extends Node {
-        private final String identifier;
+        private final Node target;
         private final Token operator;
         private final Node value;
 
-        AssignmentStatement(String identifier, Token operator, Node value, int line, int column) {
-            this.identifier = identifier;
+        AssignmentStatement(Node target, Token operator, Node value, int line, int column) {
+            this.target = target;
             this.operator = operator;
             this.value = value;
             this.line = line;
@@ -952,6 +1112,94 @@ public class Parser {
         @Override
         public <R> R accept(Visitor<R> visitor) throws ParseException {
             return visitor.visitSwitchCase(this);
+        }
+    }
+
+    @Getter
+    public static class FunctionDecl extends Node {
+        private final String name;
+        private final List<String> paramNames;
+        private final List<Token> paramTypes;
+        private final List<Boolean> isArrayTypes;
+        private final Token returnType;
+        private final Boolean isReturnTypeArray;
+        private final Node body;
+
+        public FunctionDecl(String name, List<String> paramNames, List<Token> paramTypes, List<Boolean> isArrayTypes, Token returnType, Boolean isReturnTypeArray, Node body, int line, int column) {
+            this.name = name;
+            this.paramNames = paramNames;
+            this.paramTypes = paramTypes;
+            this.isArrayTypes = isArrayTypes;
+            this.returnType = returnType;
+            this.isReturnTypeArray = isReturnTypeArray;
+            this.body = body;
+            this.line = line;
+            this.column = column;
+        }
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) throws ParseException {
+            return visitor.visitFunctionDecl(this);
+        }
+    }
+
+    @Getter
+    public static class FunctionCall extends Node {
+        private final String name;
+        private final List<Node> arguments;
+
+        public FunctionCall(String name, List<Node> arguments, int line, int column) {
+            this.name = name;
+            this.arguments = arguments;
+            this.line = line;
+            this.column = column;
+        }
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) throws ParseException {
+            return visitor.visitFunctionCall(this);
+        }
+    }
+
+    public static class MethodCall extends Node {
+        private final String objectName;
+        private final String methodName;
+        private final List<Node> arguments;
+        private final Node objectNode;
+
+        public MethodCall(String objectName, String methodName, List<Node> arguments, Node objectNode, int line, int column) {
+            this.objectName = objectName;
+            this.methodName = methodName;
+            this.arguments = arguments;
+            this.objectNode = objectNode;
+            this.line = line;
+            this.column = column;
+        }
+
+        public String getObjectName() { return objectName; }
+        public String getMethodName() { return methodName; }
+        public List<Node> getArguments() { return arguments; }
+        public Node getObjectNode() { return objectNode; }
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) throws ParseException {
+            return visitor.visitMethodCall(this);
+        }
+    }
+
+    @Getter
+    public static class ExpressionStatement extends Node {
+        private final Node expression;
+
+        public ExpressionStatement(Node expression, int line, int column) {
+            this.expression = expression;
+            this.line = line;
+            this.column = column;
+        }
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) throws ParseException {
+            return visitor.visitExpressionStatement(this);
         }
     }
 }

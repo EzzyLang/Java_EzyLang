@@ -28,10 +28,10 @@ public class Main {
             List<Token> tokens = lexer.scanTokens();
 
             Parser parser = new Parser(fileName, input, tokens);
-            Parser.Node node = parser.parse();
+            Parser.Program program = parser.parse();
 
             Interpreter interpreter = new Interpreter(fileName, input);
-            interpreter.interpret(node);
+            interpreter.interpret(program);
         } catch (IOException e) {
             System.err.println(e.getMessage());
             System.exit(1);
