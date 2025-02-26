@@ -1,7 +1,8 @@
-test: number = 2
+from math import add as plus, x
+import math x, $y as const_y
 
-if (test as string is string) {
-    print("test is string")
-} else {
-    print("test is not string")
-}
+a: number = 5
+
+println(plus(5, 3))  // Outputs: 8
+println(x)          // Outputs: 42
+println(const_y)    // Outputs: 100

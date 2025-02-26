@@ -33,6 +33,15 @@ public class Parser {
     }
 
     private Node parseStatement() throws ParseException {
+        if (match(Token.TokenType.FROM)) {
+            return parseFromImportStatement();
+        }
+        if (match(Token.TokenType.RETURN)) {
+            return parseReturnStatement();
+        }
+        if (match(Token.TokenType.IMPORT)) {
+            return parseImportStatement();
+        }
         if (match(Token.TokenType.FUNC)) {
             return parseFunctionDecl();
         }
@@ -114,6 +123,68 @@ public class Parser {
 
         Node expr = parseExpression();
         return new ExpressionStatement(expr, expr.getLine(), expr.getColumn());
+    }
+
+    private Node parseImportStatement() throws ParseException {
+        Token importToken = previous();
+        String moduleName = consume(Token.TokenType.IDENTIFIER, "Expected module name after 'import'").getValue();
+
+        List<ImportItem> items = new ArrayList<>();
+
+        if (match(Token.TokenType.ASTERISK)) {
+            items.add(new ImportItem("*", null, false));
+        } else {
+            do {
+                boolean isConstant = match(Token.TokenType.DOLLAR); // $로 시작하는지 확인
+                String name;
+                if (isConstant) {
+                    name = consume(Token.TokenType.IDENTIFIER, "Expected identifier after '$'").getValue();
+                } else {
+                    name = consume(Token.TokenType.IDENTIFIER, "Expected identifier for import item").getValue();
+                }
+                String alias = null;
+                if (match(Token.TokenType.AS)) {
+                    alias = consume(Token.TokenType.IDENTIFIER, "Expected alias name after 'as'").getValue();
+                }
+                items.add(new ImportItem(name, alias, isConstant));
+            } while (match(Token.TokenType.COMMA));
+        }
+
+        return new ImportStatement(moduleName, items, importToken.getLine(), importToken.getColumn());
+    }
+
+    private Node parseFromImportStatement() throws ParseException {
+        String moduleName = consume(Token.TokenType.IDENTIFIER, "Expected module name after 'from'").getValue();
+        consume(Token.TokenType.IMPORT, "Expected 'import' after module name");
+
+        List<ImportItem> items = new ArrayList<>();
+
+        if (match(Token.TokenType.ASTERISK)) {
+            items.add(new ImportItem("*", null, false));
+        } else {
+            do {
+                boolean isConstant = match(Token.TokenType.DOLLAR); // $로 시작하는지 확인
+                String name;
+                if (isConstant) {
+                    name = consume(Token.TokenType.IDENTIFIER, "Expected identifier after '$'").getValue();
+                } else {
+                    name = consume(Token.TokenType.IDENTIFIER, "Expected identifier for import item").getValue();
+                }
+                String alias = null;
+                if (match(Token.TokenType.AS)) {
+                    alias = consume(Token.TokenType.IDENTIFIER, "Expected alias name after 'as'").getValue();
+                }
+                items.add(new ImportItem(name, alias, isConstant));
+            } while (match(Token.TokenType.COMMA));
+        }
+
+        return new ImportStatement(moduleName, items, previous().getLine(), previous().getColumn());
+    }
+
+    private Node parseReturnStatement() throws ParseException {
+        Token returnToken = previous();
+        Node value = parseExpression();
+        return new ReturnStatement(value, returnToken.getLine(), returnToken.getColumn());
     }
 
     private Node parseFunctionDecl() throws ParseException {
@@ -509,7 +580,16 @@ public class Parser {
         }
         if (match(Token.TokenType.IDENTIFIER)) {
             Token token = previous();
-
+            if (match(Token.TokenType.LEFT_PAREN)) {
+                List<Node> arguments = new ArrayList<>();
+                if (!check(Token.TokenType.RIGHT_PAREN)) {
+                    do {
+                        arguments.add(parseExpression());
+                    } while (match(Token.TokenType.COMMA));
+                }
+                consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
+                return new FunctionCall(token.getValue(), arguments, token.getLine(), token.getColumn());
+            }
             if (match(Token.TokenType.LEFT_BRACKET)) {
                 Node index = parseExpression();
                 consume(Token.TokenType.RIGHT_BRACKET, "Expected ']' after index expression");
@@ -651,6 +731,10 @@ public class Parser {
         R visitMethodCall(MethodCall methodCall) throws ParseException;
 
         R visitExpressionStatement(ExpressionStatement expressionStatement) throws ParseException;
+
+        R visitImportStatement(ImportStatement importStatement) throws ParseException;
+
+        R visitReturnStatement(ReturnStatement returnStatement) throws ParseException;
     }
 
     @Getter
@@ -1200,6 +1284,53 @@ public class Parser {
         @Override
         public <R> R accept(Visitor<R> visitor) throws ParseException {
             return visitor.visitExpressionStatement(this);
+        }
+    }
+
+    @Getter
+    public static class ImportStatement extends Node {
+        private final String moduleName;
+        private final List<ImportItem> items;
+
+        public ImportStatement(String moduleName, List<ImportItem> items, int line, int column) {
+            this.moduleName = moduleName;
+            this.items = items;
+            this.line = line;
+            this.column = column;
+        }
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) throws ParseException {
+            return visitor.visitImportStatement(this);
+        }
+    }
+
+    @Getter
+    public static class ImportItem {
+        private final String name;
+        private final String alias;
+        private final boolean isConstant;
+
+        public ImportItem(String name, String alias, boolean isConstant) {
+            this.name = name;
+            this.alias = alias;
+            this.isConstant = isConstant;
+        }
+    }
+
+    @Getter
+    public static class ReturnStatement extends Node {
+        private final Node value;
+
+        ReturnStatement(Node value, int line, int column) {
+            this.value = value;
+            this.line = line;
+            this.column = column;
+        }
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) throws ParseException {
+            return visitor.visitReturnStatement(this);
         }
     }
 }

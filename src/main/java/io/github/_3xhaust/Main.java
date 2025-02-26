@@ -41,7 +41,7 @@ public class Main {
         }
     }
 
-    private static String readFile(String fileName) throws IOException {
+    public static String readFile(String fileName) throws IOException {
         StringBuilder input = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new FileReader(fileName, StandardCharsets.UTF_8))) {
             String line;

@@ -1,16 +1,56 @@
 package io.github._3xhaust.interpreter;
 
-import io.github._3xhaust.ezylang.exception.ParseException;
-import io.github._3xhaust.ezylang.lexer.Token;
-import io.github._3xhaust.ezylang.parser.Parser.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import java.util.*;
+import io.github._3xhaust.ezylang.exception.ParseException;
+import io.github._3xhaust.ezylang.lexer.Lexer;
+import io.github._3xhaust.ezylang.lexer.Token;
+import io.github._3xhaust.ezylang.parser.Parser;
+import io.github._3xhaust.ezylang.parser.Parser.ArrayAccess;
+import io.github._3xhaust.ezylang.parser.Parser.ArrayLiteral;
+import io.github._3xhaust.ezylang.parser.Parser.AssignmentStatement;
+import io.github._3xhaust.ezylang.parser.Parser.BinaryExpr;
+import io.github._3xhaust.ezylang.parser.Parser.Block;
+import io.github._3xhaust.ezylang.parser.Parser.BreakStatement;
+import io.github._3xhaust.ezylang.parser.Parser.ConstantDecl;
+import io.github._3xhaust.ezylang.parser.Parser.ContinueStatement;
+import io.github._3xhaust.ezylang.parser.Parser.ExpressionStatement;
+import io.github._3xhaust.ezylang.parser.Parser.ForStatement;
+import io.github._3xhaust.ezylang.parser.Parser.FunctionCall;
+import io.github._3xhaust.ezylang.parser.Parser.FunctionDecl;
+import io.github._3xhaust.ezylang.parser.Parser.Identifier;
+import io.github._3xhaust.ezylang.parser.Parser.IfStatement;
+import io.github._3xhaust.ezylang.parser.Parser.ImportItem;
+import io.github._3xhaust.ezylang.parser.Parser.ImportStatement;
+import io.github._3xhaust.ezylang.parser.Parser.InterpolatedString;
+import io.github._3xhaust.ezylang.parser.Parser.Literal;
+import io.github._3xhaust.ezylang.parser.Parser.MethodCall;
+import io.github._3xhaust.ezylang.parser.Parser.Node;
+import io.github._3xhaust.ezylang.parser.Parser.PrintStatement;
+import io.github._3xhaust.ezylang.parser.Parser.Program;
+import io.github._3xhaust.ezylang.parser.Parser.SwitchCase;
+import io.github._3xhaust.ezylang.parser.Parser.SwitchStatement;
+import io.github._3xhaust.ezylang.parser.Parser.TypeCastExpr;
+import io.github._3xhaust.ezylang.parser.Parser.TypeCheckExpr;
+import io.github._3xhaust.ezylang.parser.Parser.UnaryExpr;
+import io.github._3xhaust.ezylang.parser.Parser.VariableDecl;
+import io.github._3xhaust.ezylang.parser.Parser.Visitor;
+import io.github._3xhaust.ezylang.parser.Parser.WhileStatement;
 
 public class Interpreter implements Visitor<Object> {
     private final Map<String, Object> variables = new HashMap<>();
     private final Map<String, Object> constants = new HashMap<>();
     private final Map<String, FunctionDecl> functions = new HashMap<>();
     private final Map<String, NativeFunction> nativeFunctions = new HashMap<>();
+    private final Map<String, Interpreter> loadedModules = new HashMap<>();
     private final String fileName;
     private final List<String> lines;
 
@@ -38,8 +78,32 @@ public class Interpreter implements Visitor<Object> {
         }
     }
 
-    private void registerNativeFunctions() {
+    private Interpreter loadModule(String moduleName) throws ParseException {
+        if (loadedModules.containsKey(moduleName)) {
+            return loadedModules.get(moduleName);
+        }
 
+        try {
+            Path currentDir = Paths.get(fileName).getParent();
+            String moduleFileName = moduleName + ".ezy";
+            Path modulePath = currentDir != null ? currentDir.resolve(moduleFileName) : Paths.get(moduleFileName);
+
+            String sourceCode = new String(Files.readAllBytes(modulePath));
+            Lexer lexer = new Lexer(sourceCode);
+            List<Token> tokens = lexer.scanTokens();
+            Parser parser = new Parser(modulePath.toString(), sourceCode, tokens);
+            Program program = parser.parse();
+
+            Interpreter moduleInterpreter = new Interpreter(modulePath.toString(), sourceCode);
+            moduleInterpreter.interpret(program);
+            loadedModules.put(moduleName, moduleInterpreter);
+            return moduleInterpreter;
+        } catch (Exception e) {
+            throw new ParseException(fileName, "Failed to load module '" + moduleName + "': " + e.getMessage(), 1, 1, "");
+        }
+    }
+
+    private void registerNativeFunctions() {
     }
 
     @Override
@@ -756,6 +820,42 @@ public class Interpreter implements Visitor<Object> {
     public Object visitExpressionStatement(ExpressionStatement expressionStatement) throws ParseException {
         Object result = expressionStatement.getExpression().accept(this);
         return result;
+    }
+
+    @Override
+    public Object visitImportStatement(ImportStatement importStatement) throws ParseException {
+        String moduleName = importStatement.getModuleName();
+        Interpreter module = loadModule(moduleName);
+        List<ImportItem> items = importStatement.getItems();
+
+        for (ImportItem item : items) {
+            String name = item.getName();
+            String alias = item.getAlias() != null ? item.getAlias() : name;
+
+            if (name.equals("*")) {
+                variables.putAll(module.variables);
+                constants.putAll(module.constants);
+                functions.putAll(module.functions);
+            } else {
+                if (module.variables.containsKey(name)) {
+                    variables.put(alias, module.variables.get(name));
+                } else if (module.constants.containsKey(name)) {
+                    constants.put(alias, module.constants.get(name));
+                } else if (module.functions.containsKey(name)) {
+                    functions.put(alias, module.functions.get(name));
+                } else {
+                    throw error(importStatement, "Item '" + name + "' not found in module '" + moduleName + "'");
+                }
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public Object visitReturnStatement(Parser.ReturnStatement returnStatement) throws ParseException {
+        Object value = returnStatement.getValue().accept(this);
+        return value;
     }
 
     @Override
