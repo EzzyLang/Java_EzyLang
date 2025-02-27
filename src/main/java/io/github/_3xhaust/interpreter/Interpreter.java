@@ -354,11 +354,11 @@ public class Interpreter implements Visitor<Object> {
             throw error(methodCall, "No object specified for method call");
         }
 
-        if (methodName.equals("length") && object instanceof List<?>) {
+        if (methodName.equals("length") && (object instanceof List<?> || object instanceof String)) {
             if (!arguments.isEmpty()) {
                 throw error(methodCall, "Method 'length' does not take any arguments");
             }
-            return (double) ((List<?>) object).size();
+            return (double) (object instanceof List<?> list ? list.size() : ((String) object).length());
         }
         if (methodName.equals("repeat") && object instanceof String) {
             if (arguments.size() != 1) {
