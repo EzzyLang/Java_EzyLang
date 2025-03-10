@@ -1,8 +1,6 @@
-from math import add as plus, x
-import math x, $y as const_y
-
+from math import add as plus, x, y as const_y
 a: number = 5
 
-println(plus(5, 3))  // Outputs: 8
-println(x)          // Outputs: 42
-println(const_y)    // Outputs: 100
+println(plus(5, 3))
+println(x)
+println(const_y)

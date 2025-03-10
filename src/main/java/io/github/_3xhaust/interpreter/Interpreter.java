@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 
 import io.github._3xhaust.ezylang.exception.ParseException;
 import io.github._3xhaust.ezylang.lexer.Lexer;
@@ -53,6 +54,8 @@ public class Interpreter implements Visitor<Object> {
     private final Map<String, Interpreter> loadedModules = new HashMap<>();
     private final String fileName;
     private final List<String> lines;
+    private final Stack<Map<String, Object>> variableScopes = new Stack<>();
+    private final Stack<Map<String, Object>> constantScopes = new Stack<>();
 
     private interface NativeFunction {
         Object execute(List<Object> args) throws ParseException;
@@ -61,6 +64,8 @@ public class Interpreter implements Visitor<Object> {
     public Interpreter(String fileName, String sourceCode) {
         this.fileName = fileName;
         this.lines = List.of(sourceCode.split("\n"));
+        variableScopes.push(new HashMap<>());
+        constantScopes.push(new HashMap<>());
         registerNativeFunctions();
     }
 
@@ -106,6 +111,34 @@ public class Interpreter implements Visitor<Object> {
     private void registerNativeFunctions() {
     }
 
+    private void enterScope() {
+        variableScopes.push(new HashMap<>());
+        constantScopes.push(new HashMap<>());
+    }
+
+    private void exitScope() {
+        if (!variableScopes.isEmpty()) variableScopes.pop();
+        if (!constantScopes.isEmpty()) constantScopes.pop();
+    }
+
+    private Object findVariable(String name) {
+        for (int i = variableScopes.size() - 1; i >= 0; i--) {
+            if (variableScopes.get(i).containsKey(name)) {
+                return variableScopes.get(i).get(name);
+            }
+        }
+        return null;
+    }
+
+    private Object findConstant(String name) {
+        for (int i = constantScopes.size() - 1; i >= 0; i--) {
+            if (constantScopes.get(i).containsKey(name)) {
+                return constantScopes.get(i).get(name);
+            }
+        }
+        return null;
+    }
+
     @Override
     public Object visitProgram(Program program) throws ParseException {
         Object result = null;
@@ -117,18 +150,26 @@ public class Interpreter implements Visitor<Object> {
 
     @Override
     public Object visitVariableDecl(VariableDecl variableDecl) throws ParseException {
+        String identifier = variableDecl.getIdentifier();
         Object value = null;
-        if (variableDecl.getIdentifier() != null) {
+        if (variableScopes.peek().containsKey(identifier)) {
+            throw error(variableDecl, "Variable '" + identifier + "' is already defined in this scope");
+        }
+        if (variableDecl.getInitializer() != null) {
             value = variableDecl.getInitializer().accept(this);
         }
-        variables.put(variableDecl.getIdentifier(), value);
+        variableScopes.peek().put(identifier, value);
         return null;
     }
 
     @Override
     public Object visitConstantDecl(ConstantDecl constantDecl) throws ParseException {
+        String identifier = constantDecl.getIdentifier();
+        if (constantScopes.peek().containsKey(identifier)) {
+            throw error(constantDecl, "Constant '" + identifier + "' is already defined in this scope");
+        }
         Object value = constantDecl.getValue().accept(this);
-        constants.put(constantDecl.getIdentifier(), value);
+        constantScopes.peek().put(identifier, value);
         return null;
     }
 
@@ -190,8 +231,10 @@ public class Interpreter implements Visitor<Object> {
     @Override
     public Object visitIdentifier(Identifier identifier) throws ParseException {
         String name = identifier.getName();
-        if (variables.containsKey(name)) return variables.get(name);
-        if (constants.containsKey(name)) return constants.get(name);
+        Object value = findVariable(name);
+        if (value != null) return value;
+        value = findConstant(name);
+        if (value != null) return value;
 
         try {
             return Double.parseDouble(name);
@@ -205,9 +248,9 @@ public class Interpreter implements Visitor<Object> {
     public Object visitArrayAccess(ArrayAccess arrayAccess) throws ParseException {
         Object index = arrayAccess.getIndex().accept(this);
         String identifier = arrayAccess.getIdentifier();
-        Object array = variables.get(identifier);
+        Object array = findVariable(identifier);
         if (array == null) {
-            array = constants.get(identifier);
+            array = findConstant(identifier);
         }
         if (array == null) {
             throw error(arrayAccess, "Undefined variable '" + identifier + "'");
@@ -282,13 +325,21 @@ public class Interpreter implements Visitor<Object> {
 
     @Override
     public Object visitFunctionDecl(FunctionDecl functionDecl) throws ParseException {
+        String functionName = functionDecl.getName();
+        if (functions.containsKey(functionName)) {
+            throw error(functionDecl, "Function '" + functionName + "' is already defined");
+        }
         functions.put(functionDecl.getName(), functionDecl);
         return null;
     }
 
+    @Override
     public Object visitFunctionCall(FunctionCall functionCall) throws ParseException {
         String name = functionCall.getName();
         FunctionDecl function = functions.get(name);
+        if (function == null) {
+            throw error(functionCall, "Undefined function '" + name + "'");
+        }
         List<Node> arguments = functionCall.getArguments();
         List<String> paramNames = function.getParamNames();
         List<Token> paramTypes = function.getParamTypes();
@@ -298,33 +349,27 @@ public class Interpreter implements Visitor<Object> {
             throw error(functionCall, "Expected " + paramNames.size() + " arguments but got " + arguments.size());
         }
 
-        for (int i = 0; i < paramNames.size(); i++) {
-            Object value = arguments.get(i).accept(this);
-            String expectedType = paramTypes.get(i).getValue();
-            boolean isArray = isArrayTypes.get(i);
+        enterScope();
+        try {
+            for (int i = 0; i < paramNames.size(); i++) {
+                Object value = arguments.get(i).accept(this);
+                String expectedType = paramTypes.get(i).getValue();
+                boolean isArray = isArrayTypes.get(i);
 
-            if (isArray && !(value instanceof List<?>)) {
-                throw error(functionCall, "Expected '" + expectedType + "[]' but got '" + getTypeName(value) + "'");
-            } else if (!isArray && value instanceof List<?>) {
-                throw error(functionCall, "Expected '" + expectedType + "' but got array");
-            } else if (!isArray && !expectedType.equals(getTypeName(value))) {
-                throw error(functionCall, "Expected '" + expectedType + "' but got '" + getTypeName(value) + "'");
+                if (isArray && !(value instanceof List<?>)) {
+                    throw error(functionCall, "Expected '" + expectedType + "[]' but got '" + getTypeName(value) + "'");
+                } else if (!isArray && value instanceof List<?>) {
+                    throw error(functionCall, "Expected '" + expectedType + "' but got array");
+                } else if (!isArray && !expectedType.equals(getTypeName(value))) {
+                    throw error(functionCall, "Expected '" + expectedType + "' but got '" + getTypeName(value) + "'");
+                }
+                variableScopes.peek().put(paramNames.get(i), value);
             }
+
+            return function.getBody().accept(this);
+        } finally {
+            exitScope();
         }
-
-        Map<String, Object> previousVariables = new HashMap<>(variables);
-
-        for (int i = 0; i < paramNames.size(); i++) {
-            Object value = arguments.get(i).accept(this);
-            variables.put(paramNames.get(i), value);
-        }
-
-        Object result = function.getBody().accept(this);
-
-        variables.clear();
-        variables.putAll(previousVariables);
-
-        return result;
     }
 
     private String getTypeName(Object value) {
@@ -344,7 +389,7 @@ public class Interpreter implements Visitor<Object> {
 
         Object object;
         if (objectName != null) {
-            object = variables.get(objectName);
+            object = findVariable(objectName);
             if (object == null) {
                 throw error(methodCall, "Undefined variable '" + objectName + "'");
             }
@@ -522,10 +567,10 @@ public class Interpreter implements Visitor<Object> {
         Object iterable = forStatement.getStart().accept(this);
 
         if (iterable instanceof List<?> list) {
-            Object initialValue = variables.get(identifier);
+            Object initialValue = findVariable(identifier);
             try {
                 for (Object element : list) {
-                    variables.put(identifier, element);
+                    variableScopes.peek().put(identifier, element);
                     try {
                         forStatement.getBody().accept(this);
                     } catch (ContinueException ignored) {
@@ -535,9 +580,9 @@ public class Interpreter implements Visitor<Object> {
             }
 
             if (initialValue != null) {
-                variables.put(identifier, initialValue);
+                variableScopes.peek().put(identifier, initialValue);
             } else {
-                variables.remove(identifier);
+                variableScopes.peek().remove(identifier);
             }
         } else if (iterable instanceof Double) {
             double startValue = (Double) iterable;
@@ -551,11 +596,11 @@ public class Interpreter implements Visitor<Object> {
                 throw error(forStatement.getStep(), "Step must be positive, got: " + stepValue);
             }
 
-            Object initialValue = variables.get(identifier);
+            Object initialValue = findVariable(identifier);
             try {
                 if (stepValue > 0) {
                     for (double i = startValue; i <= endValue; i += stepValue) {
-                        variables.put(identifier, i);
+                        variableScopes.peek().put(identifier, i);
                         try {
                             forStatement.getBody().accept(this);
                         } catch (ContinueException ignored) {
@@ -563,7 +608,7 @@ public class Interpreter implements Visitor<Object> {
                     }
                 } else {
                     for (double i = startValue; i >= endValue; i += stepValue) {
-                        variables.put(identifier, i);
+                        variableScopes.peek().put(identifier, i);
                         try {
                             forStatement.getBody().accept(this);
                         } catch (ContinueException ignored) {
@@ -574,9 +619,9 @@ public class Interpreter implements Visitor<Object> {
             }
 
             if (initialValue != null) {
-                variables.put(identifier, initialValue);
+                variableScopes.peek().put(identifier, initialValue);
             } else {
-                variables.remove(identifier);
+                variableScopes.peek().remove(identifier);
             }
         }
 
@@ -598,9 +643,14 @@ public class Interpreter implements Visitor<Object> {
 
     @Override
     public Object visitBlock(Block block) throws ParseException {
+        enterScope();
         Object result = null;
-        for (Node statement : block.getStatements()) {
-            result = statement.accept(this);
+        try {
+            for (Node statement : block.getStatements()) {
+                result = statement.accept(this);
+            }
+        } finally {
+            exitScope();
         }
         return result;
     }
@@ -676,14 +726,14 @@ public class Interpreter implements Visitor<Object> {
 
         if (target instanceof Identifier identifierNode) {
             String identifier = identifierNode.getName();
-            if (!variables.containsKey(identifier)) {
-                if (constants.containsKey(identifier)) {
-                    throw error(assignmentStatement, "Cannot reassign to constant '" + identifier + "'");
-                }
+            if (findConstant(identifier) != null) {
+                throw error(assignmentStatement, "Cannot reassign to constant '" + identifier + "'");
+            }
+            if (findVariable(identifier) == null) {
                 throw error(assignmentStatement, "Undefined variable '" + identifier + "'");
             }
 
-            Object currentValue = variables.get(identifier);
+            Object currentValue = findVariable(identifier);
             Object newValue;
 
             switch (operator.getToken()) {
@@ -734,12 +784,17 @@ public class Interpreter implements Visitor<Object> {
                 default -> throw error(assignmentStatement, "Invalid assignment operator");
             }
 
-            variables.put(identifier, newValue);
+            for (int i = variableScopes.size() - 1; i >= 0; i--) {
+                if (variableScopes.get(i).containsKey(identifier)) {
+                    variableScopes.get(i).put(identifier, newValue);
+                    break;
+                }
+            }
         } else if (target instanceof ArrayAccess arrayAccess) {
             String identifier = arrayAccess.getIdentifier();
             Object indexObj = arrayAccess.getIndex().accept(this);
-            Boolean isConstant = constants.containsKey(identifier);
-            Object array = isConstant ? constants.get(identifier) : variables.get(identifier);
+            Boolean isConstant = findConstant(identifier) != null;
+            Object array = isConstant ? findConstant(identifier) : findVariable(identifier);
             if (array == null) {
                 throw error(assignmentStatement, "Undefined array '" + identifier + "'");
             }
@@ -833,14 +888,14 @@ public class Interpreter implements Visitor<Object> {
             String alias = item.getAlias() != null ? item.getAlias() : name;
 
             if (name.equals("*")) {
-                variables.putAll(module.variables);
-                constants.putAll(module.constants);
+                variableScopes.peek().putAll(module.variableScopes.get(0));
+                constantScopes.peek().putAll(module.constantScopes.get(0));
                 functions.putAll(module.functions);
             } else {
-                if (module.variables.containsKey(name)) {
-                    variables.put(alias, module.variables.get(name));
-                } else if (module.constants.containsKey(name)) {
-                    constants.put(alias, module.constants.get(name));
+                if (module.variableScopes.get(0).containsKey(name)) {
+                    variableScopes.peek().put(alias, module.variableScopes.get(0).get(name));
+                } else if (module.constantScopes.get(0).containsKey(name)) {
+                    constantScopes.peek().put(alias, module.constantScopes.get(0).get(name));
                 } else if (module.functions.containsKey(name)) {
                     functions.put(alias, module.functions.get(name));
                 } else {

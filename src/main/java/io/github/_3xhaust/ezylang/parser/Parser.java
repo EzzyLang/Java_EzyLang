@@ -23,7 +23,6 @@ public class Parser {
     }
 
     public Program parse() throws ParseException {
-        tokens.forEach(System.out::println);
         List<Node> statements = new ArrayList<>();
         while (!isAtEnd()) {
             statements.add(parseStatement());
