@@ -338,8 +338,17 @@ public class Interpreter implements Visitor<Object> {
         String name = functionCall.getName();
         FunctionDecl function = functions.get(name);
         if (function == null) {
+            NativeFunction nativeFunction = nativeFunctions.get(name);
+            if (nativeFunction != null) {
+                List<Object> args = new ArrayList<>();
+                for (Node arg : functionCall.getArguments()) {
+                    args.add(arg.accept(this));
+                }
+                return nativeFunction.execute(args);
+            }
             throw error(functionCall, "Undefined function '" + name + "'");
         }
+
         List<Node> arguments = functionCall.getArguments();
         List<String> paramNames = function.getParamNames();
         List<Token> paramTypes = function.getParamTypes();
@@ -349,10 +358,15 @@ public class Interpreter implements Visitor<Object> {
             throw error(functionCall, "Expected " + paramNames.size() + " arguments but got " + arguments.size());
         }
 
+        List<Object> evaluatedArgs = new ArrayList<>();
+        for (Node arg : arguments) {
+            evaluatedArgs.add(arg.accept(this));
+        }
+
         enterScope();
         try {
             for (int i = 0; i < paramNames.size(); i++) {
-                Object value = arguments.get(i).accept(this);
+                Object value = evaluatedArgs.get(i);
                 String expectedType = paramTypes.get(i).getValue();
                 boolean isArray = isArrayTypes.get(i);
 
@@ -366,10 +380,33 @@ public class Interpreter implements Visitor<Object> {
                 variableScopes.peek().put(paramNames.get(i), value);
             }
 
-            return function.getBody().accept(this);
+            try {
+                Object result = function.getBody().accept(this);
+                return result;
+            } catch (ReturnException returnEx) {
+                return returnEx.getValue();
+            }
         } finally {
             exitScope();
         }
+    }
+
+    private static class ReturnException extends RuntimeException {
+        private final Object value;
+
+        ReturnException(Object value) {
+            this.value = value;
+        }
+
+        public Object getValue() {
+            return value;
+        }
+    }
+
+    @Override
+    public Object visitReturnStatement(Parser.ReturnStatement returnStatement) throws ParseException {
+        Object value = returnStatement.getValue().accept(this);
+        throw new ReturnException(value);
     }
 
     private String getTypeName(Object value) {
@@ -905,12 +942,6 @@ public class Interpreter implements Visitor<Object> {
         }
 
         return null;
-    }
-
-    @Override
-    public Object visitReturnStatement(Parser.ReturnStatement returnStatement) throws ParseException {
-        Object value = returnStatement.getValue().accept(this);
-        return value;
     }
 
     @Override
