@@ -83,7 +83,10 @@ public class Parser {
             else if (match(Token.TokenType.EQUAL, Token.TokenType.PLUS_EQUAL,
                     Token.TokenType.MINUS_EQUAL, Token.TokenType.ASTERISK_EQUAL,
                     Token.TokenType.SLASH_EQUAL, Token.TokenType.PERCENT_EQUAL)) {
-                return parseAssignment();
+                Token operator = previous();
+                Node value = parseExpression();
+                Node target = new Identifier(identifierToken.getValue(), identifierToken.getLine(), identifierToken.getColumn());
+                return new AssignmentStatement(target, operator, value, target.getLine(), target.getColumn());
             }
             else {
                 Node expr = new Identifier(identifierToken.getValue(), identifierToken.getLine(), identifierToken.getColumn());
