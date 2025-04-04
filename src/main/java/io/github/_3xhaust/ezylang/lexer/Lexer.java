@@ -109,7 +109,11 @@ public class Lexer {
             }
             case '/' -> {
                 if (match('/')) {
+                    // Single-line comment
                     while (peek() != '\n' && !isAtEnd()) advance();
+                } else if (match('*')) {
+                    // Block comment
+                    blockComment();
                 } else if (match('=')) {
                     addToken(Token.TokenType.SLASH_EQUAL);
                 } else {
@@ -191,6 +195,27 @@ public class Lexer {
                 }
             }
         }
+    }
+
+    private void blockComment() {
+        // Continue until we find the closing */
+        while (!isAtEnd()) {
+            if (peek() == '*' && peekNext() == '/') {
+                // Found the end of the comment
+                advance(); // consume *
+                advance(); // consume /
+                return;
+            } else if (peek() == '\n') {
+                line++;
+                column = 1;
+                advance();
+            } else {
+                advance();
+            }
+        }
+
+        // If we get here, the comment was never closed
+        throw new RuntimeException("Unclosed block comment at line " + line + ", column " + column);
     }
 
     private void string() {
