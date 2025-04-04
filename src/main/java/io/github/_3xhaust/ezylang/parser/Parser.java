@@ -545,7 +545,9 @@ public class Parser {
         }
         if (match(Token.TokenType.STRING_LITERAL)) {
             Token token = previous();
-            Node literal = new Literal(token.getValue(), "string", token.getLine(), token.getColumn());
+            Node literal = token.getValue().length() == 1 ?
+                    new Literal(token.getValue().charAt(0), "char", token.getLine(), token.getColumn()) :
+                    new Literal(token.getValue(), "string", token.getLine(), token.getColumn());
             if (match(Token.TokenType.DOT)) {
                 Token methodToken = consume(Token.TokenType.IDENTIFIER, "Expected method name after '.'");
                 consume(Token.TokenType.LEFT_PAREN, "Expected '(' after method name");
