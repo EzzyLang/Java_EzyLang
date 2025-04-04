@@ -60,11 +60,9 @@ public class Parser {
                 } else {
                     return new ExpressionStatement(target, target.getLine(), target.getColumn());
                 }
-            }
-            else if (check(Token.TokenType.LEFT_PAREN)) {
+            } else if (check(Token.TokenType.LEFT_PAREN)) {
                 return parseFunctionCall();
-            }
-            else if (match(Token.TokenType.DOT)) {
+            } else if (match(Token.TokenType.DOT)) {
                 Token methodToken = consume(Token.TokenType.IDENTIFIER, "Expected method name after '.'");
                 consume(Token.TokenType.LEFT_PAREN, "Expected '(' after method name");
                 List<Node> arguments = new ArrayList<>();
@@ -76,21 +74,21 @@ public class Parser {
                 consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
                 Node methodCall = new MethodCall(identifierToken.getValue(), methodToken.getValue(), arguments, null, identifierToken.getLine(), identifierToken.getColumn());
                 return new ExpressionStatement(methodCall, methodCall.getLine(), methodCall.getColumn());
-            }
-            else if (check(Token.TokenType.COLON)) {
+            } else if (check(Token.TokenType.COLON)) {
                 return parseVariableDecl(false);
-            }
-            else if (match(Token.TokenType.EQUAL, Token.TokenType.PLUS_EQUAL,
+            } else if (match(Token.TokenType.EQUAL, Token.TokenType.PLUS_EQUAL,
                     Token.TokenType.MINUS_EQUAL, Token.TokenType.ASTERISK_EQUAL,
                     Token.TokenType.SLASH_EQUAL, Token.TokenType.PERCENT_EQUAL)) {
                 Token operator = previous();
                 Node value = parseExpression();
                 Node target = new Identifier(identifierToken.getValue(), identifierToken.getLine(), identifierToken.getColumn());
                 return new AssignmentStatement(target, operator, value, target.getLine(), target.getColumn());
-            }
-            else {
-                Node expr = new Identifier(identifierToken.getValue(), identifierToken.getLine(), identifierToken.getColumn());
-                return new ExpressionStatement(expr, expr.getLine(), expr.getColumn());
+            } else if (match(Token.TokenType.PLUS_PLUS, Token.TokenType.MINUS_MINUS)) {
+                Token operator = previous();
+                Node target = new Identifier(identifierToken.getValue(), identifierToken.getLine(), identifierToken.getColumn());
+                return new IncrementDecrementExpr(target, operator, false, target.getLine(), target.getColumn());
+            } else {
+                return new ExpressionStatement(new Identifier(identifierToken.getValue(), identifierToken.getLine(), identifierToken.getColumn()), identifierToken.getLine(), identifierToken.getColumn());
             }
         }
         if (match(Token.TokenType.DOLLAR)) {
@@ -288,29 +286,6 @@ public class Parser {
 
         consume(Token.TokenType.RIGHT_BRACE, "Expected '}' after switch cases");
         return new SwitchStatement(expression, cases, defaultCase, switchToken.getLine(), switchToken.getColumn());
-    }
-
-    private Node parseAssignment() throws ParseException {
-        Node target = parsePrimary();
-
-        Token operator;
-        if (match(Token.TokenType.EQUAL)) {
-            operator = previous();
-        } else if (match(Token.TokenType.PLUS_EQUAL, Token.TokenType.MINUS_EQUAL,
-                Token.TokenType.ASTERISK_EQUAL, Token.TokenType.SLASH_EQUAL,
-                Token.TokenType.PERCENT_EQUAL)) {
-            operator = previous();
-        } else {
-            throw new ParseException(fileName, "Expected '=' or a compound assignment operator", peek().getLine(), peek().getColumn(), getErrorLine(peek().getLine()));
-        }
-
-        Node value = parseExpression();
-
-        if (!(target instanceof Identifier) && !(target instanceof ArrayAccess)) {
-            throw new ParseException(fileName, "Invalid assignment target", target.getLine(), target.getColumn(), getErrorLine(target.getLine()));
-        }
-
-        return new AssignmentStatement(target, operator, value, target.getLine(), target.getColumn());
     }
 
     private Node parseBlock() throws ParseException {
@@ -522,6 +497,19 @@ public class Parser {
             return new UnaryExpr(operator, operand, operator.getLine(), operator.getColumn());
         }
 
+        if (match(Token.TokenType.PLUS_PLUS, Token.TokenType.MINUS_MINUS)) {
+            Token operator = previous();
+            Node operand = parseUnaryExpression();
+
+            if (!(operand instanceof Identifier) && !(operand instanceof ArrayAccess)) {
+                throw new ParseException(fileName,
+                        "Invalid operand for prefix " + (operator.getToken() == Token.TokenType.PLUS_PLUS ? "increment" : "decrement") + " operator",
+                        operand.getLine(), operand.getColumn(), getErrorLine(operand.getLine()));
+            }
+
+            return new IncrementDecrementExpr(operand, operator, true, operator.getLine(), operator.getColumn());
+        }
+
         return parsePrimary();
     }
 
@@ -584,6 +572,7 @@ public class Parser {
         }
         if (match(Token.TokenType.IDENTIFIER)) {
             Token token = previous();
+            Node expr;
             if (match(Token.TokenType.LEFT_PAREN)) {
                 List<Node> arguments = new ArrayList<>();
                 if (!check(Token.TokenType.RIGHT_PAREN)) {
@@ -592,14 +581,12 @@ public class Parser {
                     } while (match(Token.TokenType.COMMA));
                 }
                 consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
-                return new FunctionCall(token.getValue(), arguments, token.getLine(), token.getColumn());
-            }
-            if (match(Token.TokenType.LEFT_BRACKET)) {
+                expr = new FunctionCall(token.getValue(), arguments, token.getLine(), token.getColumn());
+            } else if (match(Token.TokenType.LEFT_BRACKET)) {
                 Node index = parseExpression();
                 consume(Token.TokenType.RIGHT_BRACKET, "Expected ']' after index expression");
-                return new ArrayAccess(token.getValue(), index, token.getLine(), token.getColumn());
-            }
-            if (match(Token.TokenType.DOT)) {
+                expr = new ArrayAccess(token.getValue(), index, token.getLine(), token.getColumn());
+            } else if (match(Token.TokenType.DOT)) {
                 Token methodToken = consume(Token.TokenType.IDENTIFIER, "Expected method name after '.'");
                 consume(Token.TokenType.LEFT_PAREN, "Expected '(' after method name");
                 List<Node> arguments = new ArrayList<>();
@@ -609,9 +596,22 @@ public class Parser {
                     } while (match(Token.TokenType.COMMA));
                 }
                 consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
-                return new MethodCall(token.getValue(), methodToken.getValue(), arguments, null, token.getLine(), token.getColumn());
+                expr = new MethodCall(token.getValue(), methodToken.getValue(), arguments, null, token.getLine(), token.getColumn());
+            } else {
+                expr = new Identifier(token.getValue(), token.getLine(), token.getColumn());
             }
-            return new Identifier(token.getValue(), token.getLine(), token.getColumn());
+
+            if (match(Token.TokenType.PLUS_PLUS, Token.TokenType.MINUS_MINUS)) {
+                Token operator = previous();
+                if (!(expr instanceof Identifier) && !(expr instanceof ArrayAccess)) {
+                    throw new ParseException(fileName,
+                            "Invalid operand for postfix " + (operator.getToken() == Token.TokenType.PLUS_PLUS ? "increment" : "decrement") + " operator",
+                            expr.getLine(), expr.getColumn(), getErrorLine(expr.getLine()));
+                }
+                return new IncrementDecrementExpr(expr, operator, false, operator.getLine(), operator.getColumn());
+            }
+
+            return expr;
         }
 
         throw new ParseException(fileName, "Expected expression", peek().getLine(), peek().getColumn(), getErrorLine(peek().getLine()));
@@ -739,6 +739,8 @@ public class Parser {
         R visitImportStatement(ImportStatement importStatement) throws ParseException;
 
         R visitReturnStatement(ReturnStatement returnStatement) throws ParseException;
+
+        R visitIncrementDecrementExpr(IncrementDecrementExpr incrementDecrementExpr) throws ParseException;
     }
 
     @Getter
@@ -1335,6 +1337,26 @@ public class Parser {
         @Override
         public <R> R accept(Visitor<R> visitor) throws ParseException {
             return visitor.visitReturnStatement(this);
+        }
+    }
+
+    @Getter
+    public static class IncrementDecrementExpr extends Node {
+        private final Node operand;
+        private final Token operator;
+        private final boolean isPrefix;
+
+        public IncrementDecrementExpr(Node operand, Token operator, boolean isPrefix, int line, int column) {
+            this.operand = operand;
+            this.operator = operator;
+            this.isPrefix = isPrefix;
+            this.line = line;
+            this.column = column;
+        }
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) throws ParseException {
+            return visitor.visitIncrementDecrementExpr(this);
         }
     }
 }

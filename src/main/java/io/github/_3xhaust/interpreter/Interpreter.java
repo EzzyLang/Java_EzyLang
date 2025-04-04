@@ -47,8 +47,6 @@ import io.github._3xhaust.ezylang.parser.Parser.Visitor;
 import io.github._3xhaust.ezylang.parser.Parser.WhileStatement;
 
 public class Interpreter implements Visitor<Object> {
-    private final Map<String, Object> variables = new HashMap<>();
-    private final Map<String, Object> constants = new HashMap<>();
     private final Map<String, FunctionDecl> functions = new HashMap<>();
     private final Map<String, NativeFunction> nativeFunctions = new HashMap<>();
     private final Map<String, Interpreter> loadedModules = new HashMap<>();
@@ -407,6 +405,90 @@ public class Interpreter implements Visitor<Object> {
     public Object visitReturnStatement(Parser.ReturnStatement returnStatement) throws ParseException {
         Object value = returnStatement.getValue().accept(this);
         throw new ReturnException(value);
+    }
+
+    @Override
+    public Object visitIncrementDecrementExpr(Parser.IncrementDecrementExpr expr) throws ParseException {
+        String varName;
+        boolean isArrayAccess = false;
+        int index = -1;
+
+        if (expr.getOperand() instanceof Parser.Identifier) {
+            varName = ((Parser.Identifier) expr.getOperand()).getName();
+        } else if (expr.getOperand() instanceof Parser.ArrayAccess) {
+            Parser.ArrayAccess arrayAccess = (Parser.ArrayAccess) expr.getOperand();
+            varName = arrayAccess.getIdentifier();
+            isArrayAccess = true;
+
+            Object indexValue = arrayAccess.getIndex().accept(this);
+            if (!(indexValue instanceof Double)) {
+                throw error(expr, "Array index must be a number");
+            }
+            index = ((Double) indexValue).intValue();
+        } else {
+            throw error(expr, "Invalid operand for increment/decrement operator");
+        }
+
+        if (!isArrayAccess && findConstant(varName) != null) {
+            throw error(expr, "Cannot increment/decrement constant '" + varName + "'");
+        }
+
+        Object currentValue;
+        if (isArrayAccess) {
+            Object arrayObj = findVariable(varName);
+            if (arrayObj == null) {
+                arrayObj = findConstant(varName);
+                if (arrayObj != null) {
+                    throw error(expr, "Cannot modify constant array '" + varName + "'");
+                } else {
+                    throw error(expr, "Undefined array '" + varName + "'");
+                }
+            }
+
+            if (!(arrayObj instanceof List)) {
+                throw error(expr, "Variable '" + varName + "' is not an array");
+            }
+
+            List<Object> array = (List<Object>) arrayObj;
+
+            if (index < 0 || index >= array.size()) {
+                throw error(expr, "Array index out of bounds: " + index);
+            }
+
+            currentValue = array.get(index);
+        } else {
+            currentValue = findVariable(varName);
+            if (currentValue == null) {
+                throw error(expr, "Undefined variable '" + varName + "'");
+            }
+        }
+
+        if (!(currentValue instanceof Number)) {
+            throw error(expr, "Cannot increment/decrement non-numeric value");
+        }
+
+        double value = ((Number) currentValue).doubleValue();
+        double newValue;
+
+        if (expr.getOperator().getToken() == Token.TokenType.PLUS_PLUS) {
+            newValue = value + 1;
+        } else {
+            newValue = value - 1;
+        }
+
+        if (isArrayAccess) {
+            List<Object> array = (List<Object>) findVariable(varName);
+            array.set(index, newValue);
+        } else {
+            for (int i = variableScopes.size() - 1; i >= 0; i--) {
+                if (variableScopes.get(i).containsKey(varName)) {
+                    variableScopes.get(i).put(varName, newValue);
+                    break;
+                }
+            }
+        }
+
+        return expr.isPrefix() ? newValue : value;
     }
 
     private String getTypeName(Object value) {
