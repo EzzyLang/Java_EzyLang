@@ -1,0 +1,40 @@
+// 연쇄 비교
+// a < b < c 형태로 범위 조건을 한 번에 표현할 수 있다
+
+age: number = 25
+
+// 연쇄 비교: 수학적 표기법 그대로 사용 가능
+if (10 < age < 30) {
+    println("10 < 25 < 30: true")
+}
+
+if (30 < age < 50) {
+    println("이건 출력 안됨")
+} else {
+    println("30 < 25 < 50: false")
+}
+
+score: number = 75
+
+// <= 와 < 를 혼합한 연쇄 비교
+if (60 <= score <= 100) {
+    println("60 <= 75 <= 100: true")
+}
+
+if (0 <= score < 60) {
+    println("이건 출력 안됨")
+} else {
+    println("0 <= 75 < 60: false")
+}
+
+// 경계값(동일값) 포함 여부 확인
+x: number = 10
+if (10 <= x <= 10) {
+    println("10 <= 10 <= 10: true")
+}
+
+if (1 < x < 10) {
+    println("이건 출력 안됨")
+} else {
+    println("1 < 10 < 10: false")
+}

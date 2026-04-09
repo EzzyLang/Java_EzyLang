@@ -9,63 +9,42 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Stack;
 
+import io.github._3xhaust.ezylang.ast.Ast.*;
 import io.github._3xhaust.ezylang.exception.ParseException;
 import io.github._3xhaust.ezylang.lexer.Lexer;
 import io.github._3xhaust.ezylang.lexer.Token;
 import io.github._3xhaust.ezylang.parser.Parser;
-import io.github._3xhaust.ezylang.parser.Parser.ArrayAccess;
-import io.github._3xhaust.ezylang.parser.Parser.ArrayLiteral;
-import io.github._3xhaust.ezylang.parser.Parser.AssignmentStatement;
-import io.github._3xhaust.ezylang.parser.Parser.BinaryExpr;
-import io.github._3xhaust.ezylang.parser.Parser.Block;
-import io.github._3xhaust.ezylang.parser.Parser.BreakStatement;
-import io.github._3xhaust.ezylang.parser.Parser.ConstantDecl;
-import io.github._3xhaust.ezylang.parser.Parser.ContinueStatement;
-import io.github._3xhaust.ezylang.parser.Parser.ExpressionStatement;
-import io.github._3xhaust.ezylang.parser.Parser.ForStatement;
-import io.github._3xhaust.ezylang.parser.Parser.FunctionCall;
-import io.github._3xhaust.ezylang.parser.Parser.FunctionDecl;
-import io.github._3xhaust.ezylang.parser.Parser.Identifier;
-import io.github._3xhaust.ezylang.parser.Parser.IfStatement;
-import io.github._3xhaust.ezylang.parser.Parser.ImportItem;
-import io.github._3xhaust.ezylang.parser.Parser.ImportStatement;
-import io.github._3xhaust.ezylang.parser.Parser.InterpolatedString;
-import io.github._3xhaust.ezylang.parser.Parser.Literal;
-import io.github._3xhaust.ezylang.parser.Parser.MethodCall;
-import io.github._3xhaust.ezylang.parser.Parser.Node;
-import io.github._3xhaust.ezylang.parser.Parser.PrintStatement;
-import io.github._3xhaust.ezylang.parser.Parser.Program;
-import io.github._3xhaust.ezylang.parser.Parser.SwitchCase;
-import io.github._3xhaust.ezylang.parser.Parser.SwitchStatement;
-import io.github._3xhaust.ezylang.parser.Parser.TypeCastExpr;
-import io.github._3xhaust.ezylang.parser.Parser.TypeCheckExpr;
-import io.github._3xhaust.ezylang.parser.Parser.UnaryExpr;
-import io.github._3xhaust.ezylang.parser.Parser.VariableDecl;
-import io.github._3xhaust.ezylang.parser.Parser.Visitor;
-import io.github._3xhaust.ezylang.parser.Parser.WhileStatement;
+import io.github._3xhaust.interpreter.module.ArrModule;
+import io.github._3xhaust.interpreter.module.MathModule;
+import io.github._3xhaust.interpreter.module.NativeFunction;
+import io.github._3xhaust.interpreter.module.StrModule;
 
 public class Interpreter implements Visitor<Object> {
     private final Map<String, FunctionDecl> functions = new HashMap<>();
     private final Map<String, NativeFunction> nativeFunctions = new HashMap<>();
     private final Map<String, Interpreter> loadedModules = new HashMap<>();
+    private static final java.util.Set<String> BUILTIN_MODULES = java.util.Set.of("math", "str", "arr");
     private final String fileName;
     private final List<String> lines;
-    private final Stack<Map<String, Object>> variableScopes = new Stack<>();
-    private final Stack<Map<String, Object>> constantScopes = new Stack<>();
-
-    private interface NativeFunction {
-        Object execute(List<Object> args) throws ParseException;
-    }
+    private final Environment env = new Environment();
+    private final Map<String, Map<List<Object>, Object>> memoCache = new HashMap<>();
+    private final java.util.Set<String> importedModules = new java.util.HashSet<>();
+    private static final Double[] DOUBLE_CACHE = new Double[256];
+    static { for (int i = 0; i < 256; i++) DOUBLE_CACHE[i] = (double) i; }
+    private boolean testMode = false;
+    private int testsPassed = 0;
+    private int testsFailed = 0;
 
     public Interpreter(String fileName, String sourceCode) {
         this.fileName = fileName;
         this.lines = List.of(sourceCode.split("\n"));
-        variableScopes.push(new HashMap<>());
-        constantScopes.push(new HashMap<>());
         registerNativeFunctions();
     }
+
+    public void setTestMode(boolean testMode) { this.testMode = testMode; }
+    public int getTestsPassed() { return testsPassed; }
+    public int getTestsFailed() { return testsFailed; }
 
     public void interpret(Program program) throws ParseException {
         for (Node statement : program.getStatements()) {
@@ -87,20 +66,36 @@ public class Interpreter implements Visitor<Object> {
         }
 
         try {
-            Path currentDir = Paths.get(fileName).getParent();
             String moduleFileName = moduleName + ".ezy";
-            Path modulePath = currentDir != null ? currentDir.resolve(moduleFileName) : Paths.get(moduleFileName);
+            String sourceCode;
+            String modulePath;
 
-            String sourceCode = new String(Files.readAllBytes(modulePath));
+            Path currentDir = Paths.get(fileName).getParent();
+            Path localPath = currentDir != null ? currentDir.resolve(moduleFileName) : Paths.get(moduleFileName);
+
+            if (Files.exists(localPath)) {
+                sourceCode = new String(Files.readAllBytes(localPath));
+                modulePath = localPath.toString();
+            } else {
+                java.io.InputStream is = getClass().getResourceAsStream("/" + moduleFileName);
+                if (is == null) throw new Exception("Module '" + moduleName + "' not found");
+                sourceCode = new String(is.readAllBytes());
+                is.close();
+                modulePath = moduleFileName;
+            }
+
             Lexer lexer = new Lexer(sourceCode);
             List<Token> tokens = lexer.scanTokens();
-            Parser parser = new Parser(modulePath.toString(), sourceCode, tokens);
+            Parser parser = new Parser(modulePath, sourceCode, tokens);
             Program program = parser.parse();
 
-            Interpreter moduleInterpreter = new Interpreter(modulePath.toString(), sourceCode);
+            Interpreter moduleInterpreter = new Interpreter(modulePath, sourceCode);
+            registerModuleNatives(moduleName, moduleInterpreter);
             moduleInterpreter.interpret(program);
             loadedModules.put(moduleName, moduleInterpreter);
             return moduleInterpreter;
+        } catch (ParseException e) {
+            throw e;
         } catch (Exception e) {
             throw new ParseException(fileName, "Failed to load module '" + moduleName + "': " + e.getMessage(), 1, 1, "");
         }
@@ -109,33 +104,39 @@ public class Interpreter implements Visitor<Object> {
     private void registerNativeFunctions() {
     }
 
-    private void enterScope() {
-        variableScopes.push(new HashMap<>());
-        constantScopes.push(new HashMap<>());
+    private void registerModuleNatives(String moduleName, Interpreter moduleInterpreter) {
+        switch (moduleName) {
+            case "math" -> {
+                MathModule.register(moduleInterpreter.nativeFunctions);
+                MathModule.registerConstants(moduleInterpreter.env.getGlobalConstantScope());
+            }
+            case "str" -> StrModule.register(moduleInterpreter.nativeFunctions);
+            case "arr" -> ArrModule.register(moduleInterpreter.nativeFunctions);
+        }
     }
 
-    private void exitScope() {
-        if (!variableScopes.isEmpty()) variableScopes.pop();
-        if (!constantScopes.isEmpty()) constantScopes.pop();
-    }
-
-    private Object findVariable(String name) {
-        for (int i = variableScopes.size() - 1; i >= 0; i--) {
-            if (variableScopes.get(i).containsKey(name)) {
-                return variableScopes.get(i).get(name);
+    private String formatValue(Object value) {
+        if (value == null) return "null";
+        if (value instanceof Double d) {
+            if (d == Math.floor(d) && !Double.isInfinite(d) && Math.abs(d) < 1e15) {
+                return String.valueOf(d.longValue());
             }
         }
-        return null;
+        return String.valueOf(value);
     }
 
-    private Object findConstant(String name) {
-        for (int i = constantScopes.size() - 1; i >= 0; i--) {
-            if (constantScopes.get(i).containsKey(name)) {
-                return constantScopes.get(i).get(name);
-            }
-        }
-        return null;
+    private static Double cachedDouble(double v) {
+        int i = (int) v;
+        if (i == v && i >= 0 && i < 256) return DOUBLE_CACHE[i];
+        return v;
     }
+
+    private void enterScope() { env.enterScope(); }
+    private void exitScope() { env.exitScope(); }
+    private Object findVariable(String name) { return env.findVariable(name); }
+    private Object findConstant(String name) { return env.findConstant(name); }
+    private void setVariable(String name, Object value) { env.setVariable(name, value); }
+    private void setConstant(String name, Object value) { env.setConstant(name, value); }
 
     @Override
     public Object visitProgram(Program program) throws ParseException {
@@ -150,34 +151,70 @@ public class Interpreter implements Visitor<Object> {
     public Object visitVariableDecl(VariableDecl variableDecl) throws ParseException {
         String identifier = variableDecl.getIdentifier();
         Object value = null;
-        if (variableScopes.peek().containsKey(identifier)) {
+        if (env.hasVariableInCurrentScope(identifier)) {
             throw error(variableDecl, "Variable '" + identifier + "' is already defined in this scope");
         }
         if (variableDecl.getInitializer() != null) {
             value = variableDecl.getInitializer().accept(this);
         }
-        variableScopes.peek().put(identifier, value);
+
+        if (variableDecl.getConstraint() != null) {
+            Constraint c = variableDecl.getConstraint();
+            if (c.isRange()) {
+                double min = (Double) c.getMin().accept(this);
+                double max = (Double) c.getMax().accept(this);
+                env.setConstraint(identifier, new double[]{min, max});
+                if (value != null) validateConstraint(identifier, value, variableDecl);
+            } else if (c.isEnum()) {
+                List<Object> allowed = new ArrayList<>();
+                for (Node node : c.getAllowedValues()) {
+                    allowed.add(node.accept(this));
+                }
+                env.setConstraint(identifier, allowed);
+                if (value != null) validateConstraint(identifier, value, variableDecl);
+            }
+        }
+
+        setVariable(identifier, value);
         return null;
+    }
+
+    private void validateConstraint(String varName, Object value, Node errorNode) throws ParseException {
+        Object constraint = env.findConstraint(varName);
+        if (constraint == null) return;
+
+        if (constraint instanceof double[] range) {
+            if (!(value instanceof Double)) throw error(errorNode, "Expected number for constrained variable '" + varName + "'");
+            double v = (Double) value;
+            if (v < range[0] || v > range[1]) {
+                throw error(errorNode, "Value " + v + " is out of range " + range[0] + ".." + range[1] + " for variable '" + varName + "'");
+            }
+        } else if (constraint instanceof List<?> allowedValues) {
+            if (!allowedValues.contains(value)) {
+                throw error(errorNode, "Value '" + value + "' is not allowed for variable '" + varName + "'. Allowed: " + allowedValues);
+            }
+        }
     }
 
     @Override
     public Object visitConstantDecl(ConstantDecl constantDecl) throws ParseException {
         String identifier = constantDecl.getIdentifier();
-        if (constantScopes.peek().containsKey(identifier)) {
+        if (env.hasConstantInCurrentScope(identifier)) {
             throw error(constantDecl, "Constant '" + identifier + "' is already defined in this scope");
         }
         Object value = constantDecl.getValue().accept(this);
-        constantScopes.peek().put(identifier, value);
+        setConstant(identifier, value);
         return null;
     }
 
     @Override
     public Object visitPrintStatement(PrintStatement printStatement) throws ParseException {
         Object result = printStatement.getExpression().accept(this);
+        String output = formatValue(result);
         if (printStatement.isPrintln()) {
-            System.out.println(result);
+            System.out.println(output);
         } else {
-            System.out.print(result);
+            System.out.print(output);
         }
         return null;
     }
@@ -190,7 +227,7 @@ public class Interpreter implements Visitor<Object> {
         return switch (binaryExpr.getOperator().getToken()) {
             case PLUS -> {
                 if (left instanceof String || right instanceof String) {
-                    yield String.valueOf(left) + right;
+                    yield formatValue(left) + formatValue(right);
                 }
                 if (left instanceof Double && right instanceof Double) {
                     yield (Double) left + (Double) right;
@@ -237,7 +274,6 @@ public class Interpreter implements Visitor<Object> {
         try {
             return Double.parseDouble(name);
         } catch (NumberFormatException e) {
-            System.out.println("Error: " + e.getMessage());
             throw error(identifier, "Undefined variable '" + name + "'");
         }
     }
@@ -361,6 +397,13 @@ public class Interpreter implements Visitor<Object> {
             evaluatedArgs.add(arg.accept(this));
         }
 
+        if (function.isMemo()) {
+            Map<List<Object>, Object> cache = memoCache.computeIfAbsent(name, k -> new HashMap<>());
+            if (cache.containsKey(evaluatedArgs)) {
+                return cache.get(evaluatedArgs);
+            }
+        }
+
         enterScope();
         try {
             for (int i = 0; i < paramNames.size(); i++) {
@@ -375,14 +418,17 @@ public class Interpreter implements Visitor<Object> {
                 } else if (!isArray && !expectedType.equals(getTypeName(value))) {
                     throw error(functionCall, "Expected '" + expectedType + "' but got '" + getTypeName(value) + "'");
                 }
-                variableScopes.peek().put(paramNames.get(i), value);
+                setVariable(paramNames.get(i), value);
             }
 
             try {
                 Object result = function.getBody().accept(this);
+                if (function.isMemo()) memoCache.get(name).put(evaluatedArgs, result);
                 return result;
             } catch (ReturnException returnEx) {
-                return returnEx.getValue();
+                Object value = returnEx.getValue();
+                if (function.isMemo()) memoCache.get(name).put(evaluatedArgs, value);
+                return value;
             }
         } finally {
             exitScope();
@@ -402,21 +448,21 @@ public class Interpreter implements Visitor<Object> {
     }
 
     @Override
-    public Object visitReturnStatement(Parser.ReturnStatement returnStatement) throws ParseException {
+    public Object visitReturnStatement(ReturnStatement returnStatement) throws ParseException {
         Object value = returnStatement.getValue().accept(this);
         throw new ReturnException(value);
     }
 
     @Override
-    public Object visitIncrementDecrementExpr(Parser.IncrementDecrementExpr expr) throws ParseException {
+    public Object visitIncrementDecrementExpr(IncrementDecrementExpr expr) throws ParseException {
         String varName;
         boolean isArrayAccess = false;
         int index = -1;
 
-        if (expr.getOperand() instanceof Parser.Identifier) {
-            varName = ((Parser.Identifier) expr.getOperand()).getName();
-        } else if (expr.getOperand() instanceof Parser.ArrayAccess) {
-            Parser.ArrayAccess arrayAccess = (Parser.ArrayAccess) expr.getOperand();
+        if (expr.getOperand() instanceof Identifier) {
+            varName = ((Identifier) expr.getOperand()).getName();
+        } else if (expr.getOperand() instanceof ArrayAccess) {
+            ArrayAccess arrayAccess = (ArrayAccess) expr.getOperand();
             varName = arrayAccess.getIdentifier();
             isArrayAccess = true;
 
@@ -476,16 +522,13 @@ public class Interpreter implements Visitor<Object> {
             newValue = value - 1;
         }
 
+        if (!isArrayAccess) validateConstraint(varName, newValue, expr);
+
         if (isArrayAccess) {
             List<Object> array = (List<Object>) findVariable(varName);
             array.set(index, newValue);
         } else {
-            for (int i = variableScopes.size() - 1; i >= 0; i--) {
-                if (variableScopes.get(i).containsKey(varName)) {
-                    variableScopes.get(i).put(varName, newValue);
-                    break;
-                }
-            }
+            env.updateVariable(varName, newValue);
         }
 
         return expr.isPrefix() ? newValue : value;
@@ -505,6 +548,44 @@ public class Interpreter implements Visitor<Object> {
         String methodName = methodCall.getMethodName();
         List<Node> arguments = methodCall.getArguments();
         Node objectNode = methodCall.getObjectNode();
+
+        if (objectName != null && importedModules.contains(objectName)) {
+            Interpreter module = loadedModules.get(objectName);
+            if (module == null) {
+                throw error(methodCall, "Module '" + objectName + "' not loaded");
+            }
+            if (methodCall.isPropertyAccess()) {
+                Object constant = module.findConstant(methodName);
+                if (constant != null) return constant;
+                throw error(methodCall, "'" + methodName + "' not found in module '" + objectName + "'");
+            }
+            List<Object> args = new ArrayList<>();
+            for (Node arg : arguments) {
+                args.add(arg.accept(this));
+            }
+            NativeFunction nf = module.nativeFunctions.get(methodName);
+            if (nf != null) return nf.execute(args);
+            FunctionDecl func = module.functions.get(methodName);
+            if (func != null) {
+                module.enterScope();
+                try {
+                    List<String> paramNames = func.getParamNames();
+                    for (int i = 0; i < paramNames.size(); i++) {
+                        module.setVariable(paramNames.get(i), args.get(i));
+                    }
+                    try {
+                        return func.getBody().accept(module);
+                    } catch (ReturnException e) {
+                        return e.getValue();
+                    }
+                } finally {
+                    module.exitScope();
+                }
+            }
+            Object constant = module.findConstant(methodName);
+            if (constant != null) return constant;
+            throw error(methodCall, "'" + methodName + "' not found in module '" + objectName + "'");
+        }
 
         Object object;
         if (objectName != null) {
@@ -689,7 +770,7 @@ public class Interpreter implements Visitor<Object> {
             Object initialValue = findVariable(identifier);
             try {
                 for (Object element : list) {
-                    variableScopes.peek().put(identifier, element);
+                    setVariable(identifier, element);
                     try {
                         forStatement.getBody().accept(this);
                     } catch (ContinueException ignored) {
@@ -699,9 +780,9 @@ public class Interpreter implements Visitor<Object> {
             }
 
             if (initialValue != null) {
-                variableScopes.peek().put(identifier, initialValue);
+                setVariable(identifier, initialValue);
             } else {
-                variableScopes.peek().remove(identifier);
+                env.removeVariable(identifier);
             }
         } else if (iterable instanceof Double) {
             double startValue = (Double) iterable;
@@ -719,7 +800,7 @@ public class Interpreter implements Visitor<Object> {
             try {
                 if (stepValue > 0) {
                     for (double i = startValue; i <= endValue; i += stepValue) {
-                        variableScopes.peek().put(identifier, i);
+                        setVariable(identifier, cachedDouble(i));
                         try {
                             forStatement.getBody().accept(this);
                         } catch (ContinueException ignored) {
@@ -727,7 +808,7 @@ public class Interpreter implements Visitor<Object> {
                     }
                 } else {
                     for (double i = startValue; i >= endValue; i += stepValue) {
-                        variableScopes.peek().put(identifier, i);
+                        setVariable(identifier, cachedDouble(i));
                         try {
                             forStatement.getBody().accept(this);
                         } catch (ContinueException ignored) {
@@ -738,9 +819,9 @@ public class Interpreter implements Visitor<Object> {
             }
 
             if (initialValue != null) {
-                variableScopes.peek().put(identifier, initialValue);
+                setVariable(identifier, initialValue);
             } else {
-                variableScopes.peek().remove(identifier);
+                env.removeVariable(identifier);
             }
         }
 
@@ -778,13 +859,19 @@ public class Interpreter implements Visitor<Object> {
     public Object visitUnaryExpr(UnaryExpr unaryExpr) throws ParseException {
         Object operand = unaryExpr.getOperand().accept(this);
 
-        if (!(operand instanceof Double)) {
-            throw error(unaryExpr.getOperand(), "Operand must be a number");
-        }
-
         return switch (unaryExpr.getOperator().getToken()) {
-            case MINUS -> -(Double) operand;
-            case PLUS -> +(Double) operand;
+            case MINUS -> {
+                if (!(operand instanceof Double)) throw error(unaryExpr.getOperand(), "Operand must be a number");
+                yield -(Double) operand;
+            }
+            case PLUS -> {
+                if (!(operand instanceof Double)) throw error(unaryExpr.getOperand(), "Operand must be a number");
+                yield +(Double) operand;
+            }
+            case BANG -> {
+                if (!(operand instanceof Boolean)) throw error(unaryExpr.getOperand(), "Operand must be a boolean");
+                yield !(Boolean) operand;
+            }
             default -> throw error(unaryExpr, "Unknown unary operator: " + unaryExpr.getOperator());
         };
     }
@@ -803,7 +890,7 @@ public class Interpreter implements Visitor<Object> {
                     i++;
                 }
                 Object value = expressions.get(expressionIndex++).accept(this);
-                result.append(value);
+                result.append(formatValue(value));
             } else {
                 result.append(rawString.charAt(i));
             }
@@ -903,12 +990,9 @@ public class Interpreter implements Visitor<Object> {
                 default -> throw error(assignmentStatement, "Invalid assignment operator");
             }
 
-            for (int i = variableScopes.size() - 1; i >= 0; i--) {
-                if (variableScopes.get(i).containsKey(identifier)) {
-                    variableScopes.get(i).put(identifier, newValue);
-                    break;
-                }
-            }
+            validateConstraint(identifier, newValue, assignmentStatement);
+
+            env.updateVariable(identifier, newValue);
         } else if (target instanceof ArrayAccess arrayAccess) {
             String identifier = arrayAccess.getIdentifier();
             Object indexObj = arrayAccess.getIndex().accept(this);
@@ -1002,21 +1086,54 @@ public class Interpreter implements Visitor<Object> {
         Interpreter module = loadModule(moduleName);
         List<ImportItem> items = importStatement.getItems();
 
+        if (items.isEmpty()) {
+            importedModules.add(moduleName);
+            return null;
+        }
+
         for (ImportItem item : items) {
             String name = item.getName();
             String alias = item.getAlias() != null ? item.getAlias() : name;
 
             if (name.equals("*")) {
-                variableScopes.peek().putAll(module.variableScopes.get(0));
-                constantScopes.peek().putAll(module.constantScopes.get(0));
-                functions.putAll(module.functions);
+                Map<String, Object> currentVars = env.getTopVariableScope();
+                for (Map.Entry<String, Object> entry : module.env.getGlobalVariableScope().entrySet()) {
+                    if (currentVars.containsKey(entry.getKey()) || functions.containsKey(entry.getKey())) {
+                        throw error(importStatement, "Name conflict: '" + entry.getKey() + "' is already defined. Use 'as' alias to resolve: from " + moduleName + " import " + entry.getKey() + " as <alias>");
+                    }
+                    currentVars.put(entry.getKey(), entry.getValue());
+                }
+                Map<String, Object> currentConsts = env.getTopConstantScope();
+                for (Map.Entry<String, Object> entry : module.env.getGlobalConstantScope().entrySet()) {
+                    if (currentConsts.containsKey(entry.getKey())) {
+                        throw error(importStatement, "Name conflict: '" + entry.getKey() + "' is already defined. Use 'as' alias to resolve: from " + moduleName + " import $" + entry.getKey() + " as <alias>");
+                    }
+                    currentConsts.put(entry.getKey(), entry.getValue());
+                }
+                for (Map.Entry<String, FunctionDecl> entry : module.functions.entrySet()) {
+                    if (functions.containsKey(entry.getKey()) || nativeFunctions.containsKey(entry.getKey())) {
+                        throw error(importStatement, "Name conflict: '" + entry.getKey() + "' is already defined. Use 'as' alias to resolve: from " + moduleName + " import " + entry.getKey() + " as <alias>");
+                    }
+                    functions.put(entry.getKey(), entry.getValue());
+                }
+                for (Map.Entry<String, NativeFunction> entry : module.nativeFunctions.entrySet()) {
+                    if (nativeFunctions.containsKey(entry.getKey()) || functions.containsKey(entry.getKey())) {
+                        throw error(importStatement, "Name conflict: '" + entry.getKey() + "' is already imported. Use 'as' alias to resolve: from " + moduleName + " import " + entry.getKey() + " as <alias>");
+                    }
+                    nativeFunctions.put(entry.getKey(), entry.getValue());
+                }
             } else {
-                if (module.variableScopes.get(0).containsKey(name)) {
-                    variableScopes.peek().put(alias, module.variableScopes.get(0).get(name));
-                } else if (module.constantScopes.get(0).containsKey(name)) {
-                    constantScopes.peek().put(alias, module.constantScopes.get(0).get(name));
+                if (env.hasVariableInCurrentScope(alias) || env.hasConstantInCurrentScope(alias) || functions.containsKey(alias) || nativeFunctions.containsKey(alias)) {
+                    throw error(importStatement, "Name conflict: '" + alias + "' is already defined. Use 'as' alias to resolve: from " + moduleName + " import " + name + " as <alias>");
+                }
+                if (module.env.getGlobalVariableScope().containsKey(name)) {
+                    setVariable(alias, module.env.getGlobalVariableScope().get(name));
+                } else if (module.env.getGlobalConstantScope().containsKey(name)) {
+                    setConstant(alias, module.env.getGlobalConstantScope().get(name));
                 } else if (module.functions.containsKey(name)) {
                     functions.put(alias, module.functions.get(name));
+                } else if (module.nativeFunctions.containsKey(name)) {
+                    nativeFunctions.put(alias, module.nativeFunctions.get(name));
                 } else {
                     throw error(importStatement, "Item '" + name + "' not found in module '" + moduleName + "'");
                 }
@@ -1125,5 +1242,44 @@ public class Interpreter implements Visitor<Object> {
         ContinueException(String fileName, ContinueStatement continueStatement) {
             super(fileName, "Continue statement outside of loop", continueStatement.getLine(), continueStatement.getColumn(), "");
         }
+    }
+
+    private static class AssertionFailedException extends ParseException {
+        AssertionFailedException(String fileName, String message, int line, int column, String errorLine) {
+            super(fileName, message, line, column, errorLine);
+        }
+    }
+
+    @Override
+    public Object visitTestBlock(TestBlock testBlock) throws ParseException {
+        if (!testMode) return null;
+
+        try {
+            enterScope();
+            testBlock.getBody().accept(this);
+            exitScope();
+            testsPassed++;
+            System.out.println("[PASS] " + testBlock.getName());
+        } catch (AssertionFailedException e) {
+            exitScope();
+            testsFailed++;
+            System.out.println("[FAIL] " + testBlock.getName() + " - " + e.getMessage());
+        }
+        return null;
+    }
+
+    @Override
+    public Object visitAssertStatement(AssertStatement assertStatement) throws ParseException {
+        Object result = assertStatement.getExpression().accept(this);
+        if (!(result instanceof Boolean) || !(Boolean) result) {
+            throw new AssertionFailedException(
+                    fileName,
+                    "Assertion failed at line " + assertStatement.getLine(),
+                    assertStatement.getLine(),
+                    assertStatement.getColumn(),
+                    getErrorLine(assertStatement.getLine())
+            );
+        }
+        return null;
     }
 }

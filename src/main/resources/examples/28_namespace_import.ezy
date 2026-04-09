@@ -1,0 +1,29 @@
+// 네임스페이스 임포트
+// import 모듈명 으로 가져오면 모듈명.함수() 형태로 명시적으로 호출한다
+
+// from ... import * 와 달리 이름 충돌 없이 여러 모듈을 함께 사용할 수 있다
+import math
+import str
+import arr
+
+println("=== 네임스페이스 Import ===")
+
+// math 모듈 함수와 상수에 math. 접두사로 접근
+println("math.sqrt(144) = ${math.sqrt(144)}")
+println("math.pow(2, 10) = ${math.pow(2, 10)}")
+println("math.PI = ${math.PI}")
+println("math.sin(math.PI / 2) = ${math.sin(math.PI / 2)}")
+
+// str 모듈 함수에 str. 접두사로 접근
+upper: string = str.toUpperCase("hello")
+println("str.toUpperCase(hello) = ${upper}")
+rev: string = str.reverse("abc")
+println("str.reverse(abc) = ${rev}")
+padded: string = str.padLeft("42", 6, "0")
+println("str.padLeft(42, 6, 0) = ${padded}")
+
+// arr 모듈 함수에 arr. 접두사로 접근
+nums: number[] = arr.range(1, 10)
+println("arr.range(1, 10) sum = ${arr.sum(nums)}")
+println("arr.avg = ${arr.avg(nums)}")
+println("arr.arrMax = ${arr.arrMax(nums)}")

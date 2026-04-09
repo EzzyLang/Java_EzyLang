@@ -1,0 +1,40 @@
+// 조건문
+// if / else if / else 와 비교 연산자를 다룬다
+
+// 단계별 조건 분기
+score: number = 85
+
+if (score >= 90) {
+    println("등급: A")
+} else if (score >= 80) {
+    println("등급: B")
+} else if (score >= 70) {
+    println("등급: C")
+} else {
+    println("등급: F")
+}
+
+// 논리 연산자: &&(AND), ||(OR), !(NOT)
+age: number = 20
+hasLicense: boolean = true
+
+if (age >= 18 && hasLicense) {
+    println("운전 가능!")
+}
+
+if (age < 18 || !hasLicense) {
+    println("운전 불가!")
+} else {
+    println("모든 조건 충족!")
+}
+
+// 비교 연산자: ==, !=, <, >, <=, >=
+x: number = 10
+y: number = 20
+
+println("x == y: ${x == y}")
+println("x != y: ${x != y}")
+println("x < y: ${x < y}")
+println("x > y: ${x > y}")
+println("x <= y: ${x <= y}")
+println("x >= y: ${x >= y}")

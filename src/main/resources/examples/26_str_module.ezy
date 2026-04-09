@@ -1,0 +1,53 @@
+// str 모듈
+// from str import * 로 문자열 처리 함수를 전부 가져온다
+
+from str import *
+
+println("=== String 모듈 ===")
+text: string = "  Hello, World!  "
+
+// 공백 제거 및 대소문자 변환
+println("원본: ")
+println(text)
+trimmed: string = trim(text)
+println("trim: ")
+println(trimmed)
+println("upper: ")
+println(toUpperCase(trimmed))
+println("lower: ")
+println(toLowerCase(trimmed))
+
+// 접두사/접미사 확인 및 포함·위치 검색
+name: string = "EzyLang Programming"
+prefix: string = "Ezy"
+suffix: string = "ing"
+search: string = "Lang"
+search2: string = "Prog"
+
+println("")
+r1: boolean = startsWith(name, prefix)
+println("startsWith Ezy: ${r1}")
+r2: boolean = endsWith(name, suffix)
+println("endsWith ing: ${r2}")
+r3: boolean = strContains(name, search)
+println("strContains Lang: ${r3}")
+r4: number = strIndexOf(name, search2)
+println("strIndexOf Prog: ${r4}")
+
+// 부분 문자열 추출, 치환, 뒤집기
+sub: string = substring(name, 0, 7)
+println("\nsubstring(0, 7): ${sub}")
+old: string = "Ezy"
+new: string = "Easy"
+replaced: string = replace(name, old, new)
+println("replace: ${replaced}")
+rev: string = reverse(name)
+println("reverse: ${rev}")
+
+// 패딩과 숫자 포맷
+padded: string = padLeft("42", 6, "0")
+println("\npadLeft: ${padded}")
+padded2: string = padRight("hi", 10, ".")
+println("padRight: ${padded2}")
+formatted: string = format(3.14159, 4)
+println("format(PI, 4): ${formatted}")

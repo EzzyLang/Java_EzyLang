@@ -1,0 +1,22 @@
+// 타입 검사와 형 변환
+// is 연산자로 타입을 확인하고, as 연산자로 타입을 변환한다
+
+x: number = 42
+name: string = "hello"
+flag: boolean = true
+
+// is: 변수의 런타임 타입을 검사하여 boolean 반환
+println("x is number: ${x is number}")
+println("x is string: ${x is string}")
+println("name is string: ${name is string}")
+println("flag is boolean: ${flag is boolean}")
+
+// as: 타입을 명시적으로 변환 (문자열 <-> 숫자)
+numStr: string = "123"
+converted: number = numStr as number
+println("\n문자열 -> 숫자: ${converted}")
+println("변환 후 연산: ${converted + 7}")
+
+num: number = 65
+str: string = num as string
+println("숫자 -> 문자열: ${str}")

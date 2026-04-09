@@ -1,0 +1,42 @@
+// switch 문
+// case 블록 스타일과 화살표(->) 스타일 두 가지 문법을 다룬다
+
+// 블록 스타일: 각 case에 break로 탈출
+day: number = 3
+
+switch (day) {
+    case 1: {
+        println("월요일")
+        break
+    }
+    case 2: {
+        println("화요일")
+        break
+    }
+    case 3: {
+        println("수요일")
+        break
+    }
+    case 4: {
+        println("목요일")
+        break
+    }
+    case 5: {
+        println("금요일")
+        break
+    }
+    default:
+        println("주말")
+}
+
+// 화살표 스타일: -> 로 간결하게 표현 (break 불필요)
+println("\n=== 화살표 스타일 ===")
+grade: char = "B"
+
+switch (grade) {
+    case "A" -> println("우수")
+    case "B" -> println("양호")
+    case "C" -> println("보통")
+    default:
+        println("기타")
+}

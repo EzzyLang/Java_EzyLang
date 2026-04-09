@@ -1,0 +1,18 @@
+// 증감 연산자
+// ++ 와 -- 로 변수를 1씩 증가/감소시킨다
+
+x: number = 10
+
+println("초기값: ${x}")
+x++          // x = x + 1
+println("x++ 후: ${x}")
+x--          // x = x - 1
+println("x-- 후: ${x}")
+
+// while 루프와 함께 사용하는 일반적인 패턴
+println("\n=== 증가 루프 ===")
+count: number = 0
+while (count < 5) {
+    println("count = ${count}")
+    count++
+}

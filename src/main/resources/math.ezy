@@ -1,6 +1,1 @@
-func add(a: number, b: number): number {
-    return a + b
-}
-
-x: number = 42
-$y: number = 100
+// math module

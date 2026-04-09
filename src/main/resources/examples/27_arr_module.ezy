@@ -1,0 +1,50 @@
+// arr 모듈
+// from arr import * 로 배열 생성 및 집계 함수를 전부 가져온다
+
+from arr import *
+
+println("=== Array 모듈 ===")
+
+// range(): 시작~끝 범위의 배열 생성 (스텝 생략 시 1씩 증가)
+nums: number[] = range(1, 5)
+print("range(1, 5): ")
+for (n: number in nums) {
+    print("${n} ")
+}
+println("")
+
+// range()에 스텝을 지정하여 짝수 배열 생성
+evens: number[] = range(0, 10, 2)
+print("range(0, 10, 2): ")
+for (n: number in evens) {
+    print("${n} ")
+}
+println("")
+
+// fill(): 동일한 값으로 채운 배열 생성
+zeros: number[] = fill(5, 0)
+print("fill(5, 0): ")
+for (n: number in zeros) {
+    print("${n} ")
+}
+println("")
+
+// 집계 함수: sum, avg, arrMin, arrMax
+data: number[] = [10, 20, 30, 40, 50]
+println("\ndata = [10, 20, 30, 40, 50]")
+println("sum: ${sum(data)}")
+println("avg: ${avg(data)}")
+println("arrMin: ${arrMin(data)}")
+println("arrMax: ${arrMax(data)}")
+
+// slice(): 인덱스 범위로 부분 배열 추출
+println("\nslice(data, 1, 3): ")
+sliced: number[] = slice(data, 1, 3)
+for (n: number in sliced) {
+    print("${n} ")
+}
+println("")
+
+// count(): 특정 값의 등장 횟수 세기
+items: number[] = [1, 2, 3, 2, 1, 2]
+println("count(items, 2): ${count(items, 2)}")

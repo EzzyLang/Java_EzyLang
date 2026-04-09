@@ -1,0 +1,48 @@
+// 함수
+// 함수 선언, 반환값, 재귀 호출을 다룬다
+
+// 반환값이 없는 함수 (void)
+func greet(name: string): void {
+    println("안녕하세요, ${name}!")
+}
+
+greet("EzyLang")
+greet("World")
+
+// 값을 반환하는 함수
+func add(a: number, b: number): number {
+    return a + b
+}
+
+func multiply(a: number, b: number): number {
+    return a * b
+}
+
+result: number = add(3, 4)
+println("3 + 4 = ${result}")
+println("3 * 4 = ${multiply(3, 4)}")
+
+// 재귀 함수: 자기 자신을 호출하여 문제를 해결
+func factorial(n: number): number {
+    if (n <= 1) {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+println("5! = ${factorial(5)}")
+println("10! = ${factorial(10)}")
+
+// 재귀로 구현한 피보나치 수열
+func fib(n: number): number {
+    if (n <= 1) {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+println("\n=== 피보나치 수열 ===")
+for (i: number in 0 .. 10) {
+    print("${fib(i)} ")
+}
+println("")

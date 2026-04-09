@@ -1,0 +1,9 @@
+func add(a: number, b: number): number {
+    return a + b
+}
+
+func subtract(a: number, b: number): number {
+    return a - b
+}
+
+$PI: number = 3.14159

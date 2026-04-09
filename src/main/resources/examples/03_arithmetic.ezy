@@ -1,0 +1,26 @@
+// 산술 연산자
+// 기본 사칙연산과 복합 대입 연산자를 다룬다
+
+a: number = 10
+b: number = 3
+
+// 기본 산술 연산: +, -, *, /, % (나머지)
+println("a = ${a}, b = ${b}")
+println("a + b = ${a + b}")
+println("a - b = ${a - b}")
+println("a * b = ${a * b}")
+println("a / b = ${a / b}")
+println("a % b = ${a % b}")
+
+// 복합 대입 연산자: 연산과 대입을 동시에 수행
+x: number = 20
+x += 5
+println("x += 5 -> ${x}")
+x -= 3
+println("x -= 3 -> ${x}")
+x *= 2
+println("x *= 2 -> ${x}")
+x /= 4
+println("x /= 4 -> ${x}")
+x %= 3
+println("x %= 3 -> ${x}")

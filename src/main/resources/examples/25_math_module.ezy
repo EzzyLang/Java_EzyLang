@@ -1,0 +1,28 @@
+// math 모듈
+// from math import * 로 수학 함수와 상수를 전부 가져온다
+
+from math import *
+
+// 기본 수학 함수
+println("=== Math 모듈 ===")
+println("sqrt(144) = ${sqrt(144)}")
+println("abs(-42) = ${abs(-42)}")
+println("pow(2, 10) = ${pow(2, 10)}")
+println("min(3, 7) = ${min(3, 7)}")
+println("max(3, 7) = ${max(3, 7)}")
+println("floor(3.7) = ${floor(3.7)}")   // 내림
+println("ceil(3.2) = ${ceil(3.2)}")     // 올림
+println("round(3.5) = ${round(3.5)}")   // 반올림
+println("PI = ${PI}")
+println("E = ${E}")
+
+// 삼각함수: 인자는 라디안 단위
+println("\n=== 삼각함수 ===")
+println("sin(PI / 2) = ${sin(PI / 2)}")
+println("cos(0) = ${cos(0)}")
+println("tan(PI / 4) = ${tan(PI / 4)}")
+
+// 로그 함수
+println("\n=== 로그 ===")
+println("log(E) = ${log(E)}")         // 자연 로그
+println("log10(100) = ${log10(100)}") // 상용 로그

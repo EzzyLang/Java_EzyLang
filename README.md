@@ -1,199 +1,398 @@
-# 이지랭 (EzyLang)
-이지랭은 코틀린 파이썬 타입스크립트 등을 참고하여 코드를 짜기 편하게 만들어진 프로그래밍 언어입니다.
-<br/>
-~~안 편하다구요? 제가 편합니다~~
+# EzyLang
+
+EzyLang은 코틀린, 파이썬, 타입스크립트 등을 참고하여 만든 프로그래밍 언어입니다.
 
 ```
-arr: number[] = [5, 2, 3, 4, 1]
-
-print("정렬 전: ")
-for (i: number in arr) {
-  print("${i}")
+memo func fib(n: number): number {
+    if (n <= 1) return n
+    return fib(n - 1) + fib(n - 2)
 }
 
-sort(arr)
+println("fib(50) = ${fib(50)}")
+```
 
-print("\n정렬 후: ")
-for (i: number in arr) {
-  print("${i}")
+## 실행
+
+```bash
+java -jar ezylang-1.0.0.jar <파일명>.ezy
+
+java -jar ezylang-1.0.0.jar test <파일명>.ezy
+```
+
+## 빌드
+
+```bash
+./gradlew jar
+```
+
+---
+
+## 문법
+
+### 변수와 상수
+
+```
+name: string = "EzyLang"
+age: number = 25
+pi: number = 3.14
+isActive: boolean = true
+
+age = 26
+
+$MAX_SIZE: number = 100
+```
+
+| 타입 | 설명 | 예시 |
+|------|------|------|
+| `number` | 숫자 (정수, 실수) | `42`, `3.14` |
+| `string` | 문자열 (2글자 이상) | `"hello"` |
+| `char` | 문자 (1글자) | `"A"` |
+| `boolean` | 참/거짓 | `true`, `false` |
+| `void` | 반환값 없음 | 함수 반환 타입 |
+| `null` | 널 | `null` |
+
+### 범위 제한 타입
+
+```
+age: number(0..150) = 25
+age = 200  // 에러: Value 200.0 is out of range 0.0..150.0
+
+grade: char("A", "B", "C", "D", "F") = "A"
+grade = "Z"  // 에러: Value 'Z' is not allowed
+```
+
+### 연산자
+
+```
+a + b      a - b      a * b      a / b      a % b
+
+x += 5     x -= 3     x *= 2     x /= 4     x %= 3
+
+x++        x--        ++x        --x
+
+a == b     a != b     a < b      a > b      a <= b     a >= b
+
+a && b     a || b     !a
+
+-x         +x
+```
+
+#### 연쇄 비교
+
+```
+if (10 < age < 30) { ... }
+if (0 <= score <= 100) { ... }
+```
+
+### 문자열
+
+```
+name: string = "World"
+println("Hello, ${name}!")
+println("1 + 2 = ${1 + 2}")
+println("result = ${math.sqrt(144)}")
+
+text: string = "Hello, World!"
+text.length()
+text.charAt(0)
+text.repeat(2)
+text.split(", ")
+```
+
+### 출력
+
+```
+print("출력")
+println("출력")
+```
+
+### 조건문
+
+```
+if (score >= 90) {
+    println("A")
+} else if (score >= 80) {
+    println("B")
+} else {
+    println("F")
 }
 
-func sort(arr: number[]): void {
-    n: number = arr.length()
-    for (i: number in 0 .. n - 2) {
-        for (j: number in 0 .. n - i - 2) {
-            if (arr[j] >= arr[j + 1]) {
-                temp: number = arr[j]
-                arr[j] = arr[j + 1]
-                arr[j + 1] = temp
-            }
-        }
+if (x > 5) break
+if (flag) println("true")
+```
+
+### 반복문
+
+```
+for (i: number in 1 .. 10) {
+    println(i)
+}
+
+for (i: number in 0 .. 10 .. 2) {
+    println(i)
+}
+
+names: string[] = ["Alice", "Bob", "Charlie"]
+for (name: string in names) {
+    println(name)
+}
+
+while (count > 0) {
+    count -= 1
+}
+
+for (i: number in 1 .. 100) {
+    if (i % 2 == 0) continue
+    if (i > 10) break
+    println(i)
+}
+```
+
+### 배열
+
+```
+numbers: number[] = [1, 2, 3, 4, 5]
+names: string[] = ["Alice", "Bob"]
+
+println(numbers[0])
+numbers[0] = 99
+```
+
+| 메서드 | 설명 |
+|--------|------|
+| `length()` | 배열 길이 |
+| `contains(elem)` | 포함 여부 |
+| `indexOf(elem)` | 요소 위치 |
+| `lastIndexOf(elem)` | 마지막 요소 위치 |
+| `isEmpty()` | 비어있는지 확인 |
+| `isNotEmpty()` | 비어있지 않은지 확인 |
+| `sort()` | 정렬 |
+| `reverse()` | 역순 |
+| `shuffle()` | 무작위 섞기 |
+| `remove(elem)` | 요소 제거 |
+| `removeAt(index)` | 인덱스로 제거 |
+| `clear()` | 전체 제거 |
+| `addAll(arr)` | 배열 합치기 |
+| `join(separator)` | 문자열로 합치기 |
+
+### 함수
+
+```
+func greet(name: string): void {
+    println("안녕하세요, ${name}!")
+}
+
+func add(a: number, b: number): number {
+    return a + b
+}
+
+func factorial(n: number): number {
+    if (n <= 1) return 1
+    return n * factorial(n - 1)
+}
+```
+
+### 메모이제이션
+
+```
+memo func fib(n: number): number {
+    if (n <= 1) return n
+    return fib(n - 1) + fib(n - 2)
+}
+
+println(fib(50))
+```
+
+### switch
+
+```
+switch (day) {
+    case 1: {
+        println("월요일")
+        break
     }
+    case 2: {
+        println("화요일")
+        break
+    }
+    default:
+        println("기타")
+}
+
+switch (grade) {
+    case "A" -> println("우수")
+    case "B" -> println("양호")
+    default:
+        println("기타")
 }
 ```
 
-~~이지랭이 안 이지 하네요~~
-
-# 문법
-
-## 1. 변수 선언 및 기본 데이터 타입
-
-EZY 언어는 정적 타입 언어로, 변수를 선언할 때 타입을 명시해야 합니다.
-
-- 숫자(number): `num: number = 10`
-- 문자열(string): `str: string = "Hello, EZY!"`
-- 불리언(boolean): `bool: boolean = true`
-- 문자(char): `ch: char = 'A'`
-- null: `n: null = null`
-
-## 2. 상수 선언
-
-상수는 `$` 기호를 사용하여 선언합니다:
+### 타입 체크 / 캐스팅
 
 ```
+x: number = 42
+println(x is number)
+println(x is string)
+
+s: string = "123"
+num: number = s as number
+println(num + 7)
+```
+
+### 모듈
+
+#### 네임스페이스 import
+
+```
+import math
+
+println(math.sqrt(144))
+println(math.PI)
+```
+
+#### 글로벌 import
+
+```
+from math import *
+println(sqrt(144))
+
+from math import sqrt, $PI
+println(sqrt(144))
+println(PI)
+```
+
+#### 사용자 모듈
+
+```
+// mylib.ezy
+func add(a: number, b: number): number {
+    return a + b
+}
 $PI: number = 3.14159
 ```
 
-## 3. 연산자
-
-### 산술 연산자
-- 덧셈: `+`
-- 뺄셈: `-`
-- 곱셈: `*`
-- 나눗셈: `/`
-- 나머지: `%`
-
-### 비교 연산자
-- 같음: `==`
-- 다름: `!=`
-- 크다: `>`
-- 작다: `<`
-- 크거나 같다: `>=`
-- 작거나 같다: `<=`
-
-### 논리 연산자
-- AND: `&&`
-- OR: `||`
-
-## 4. 문자열 연산
-
-문자열 연결은 `+` 연산자를 사용합니다:
-
 ```
-str1 + ", " + str2
+from mylib import add, $PI
+println(add(3, 4))
+println(PI)
 ```
 
-## 5. 타입 체크
-
-`is` 키워드를 사용하여 타입을 확인할 수 있습니다:
+### 주석
 
 ```
-num is number
+// 한 줄 주석
+
+/*
+여러 줄 주석
+*/
 ```
 
-## 6. 조건문
-
-if-else 문을 사용합니다:
+### 블록 스코프
 
 ```
-if (조건) {
-    // 코드
-} else if (조건) {
-    // 코드
-} else {
-    // 코드
+x: number = 10
+{
+    y: number = 20
+    println(y)
+    println(x)
 }
 ```
 
-## 7. 반복문
-
-for 루프를 사용하여 반복할 수 있습니다. 증가 단위를 지정할 수 있는 기능이 있습니다:
+### 내장 테스트
 
 ```
-for (i: number in 시작..끝..증가단위) {
-    // 코드
+func add(a: number, b: number): number {
+    return a + b
+}
+
+test "덧셈 테스트" {
+    assert add(1, 2) == 3
+    assert add(-1, 1) == 0
 }
 ```
 
-예시:
-```
-// 1부터 5까지 1씩 증가
-for (i: number in 1..5) {
-    // 코드
-}
-
-// 1부터 5까지 2씩 증가 (1, 3, 5)
-for (i: number in 1..5..2) {
-    // 코드
-}
+```bash
+java -jar ezylang-1.0.0.jar test app.ezy
+# [PASS] 덧셈 테스트
+# === 1 passed, 0 failed ===
 ```
 
-## 8. 배열
+---
 
-배열은 `타입[]`를 사용하여 선언하고 초기화합니다:
+## 내장 모듈
 
-```
-arr: number[] = [1, 2, 3, 4, 5]
-```
-
-배열 요소에 접근하고 수정할 수 있습니다:
+### math
 
 ```
-arr[0] = 10
+import math
+
+math.sqrt(144)        math.abs(-42)         math.pow(2, 10)
+math.min(3, 7)        math.max(3, 7)
+math.floor(3.7)       math.ceil(3.2)        math.round(3.5)
+math.sin(x)           math.cos(x)           math.tan(x)
+math.asin(x)          math.acos(x)          math.atan(x)
+math.log(x)           math.log10(x)
+math.random()         math.toRadians(deg)   math.toDegrees(rad)
+math.PI               math.E
 ```
 
-배열 메서드:
-- `length()`: 배열의 길이를 반환
-- `add(element)`: 배열에 요소 추가
-- `remove(index)`: 지정된 인덱스의 요소 제거
-- `get(index)`: 지정된 인덱스의 요소 반환
-- `set(index, element)`: 지정된 인덱스에 요소 설정
-- `containsAll(collection)`: 모든 요소 포함 여부 확인
-- `clear()`: 모든 요소 제거
-- `addAll(collection)`: 컬렉션의 모든 요소 추가
-- `contains(element)`: 요소 포함 여부 확인
-- `indexOf(element)`: 요소의 인덱스 반환
-- `isEmpty()`: 배열이 비어있는지 확인
-- `removeAll(collection)`: 컬렉션의 모든 요소 제거
-
-## 9. 다차원 배열
-
-다차원 배열도 지원합니다:
+### str
 
 ```
-matrix: number[][] = [[1, 2], [3, 4], [5, 6]]
+import str
+
+str.toUpperCase(s)    str.toLowerCase(s)    str.trim(s)
+str.startsWith(s, p)  str.endsWith(s, p)    str.strContains(s, sub)
+str.strIndexOf(s, sub) str.strLength(s)
+str.substring(s, start, end)                 str.replace(s, old, new)
+str.reverse(s)        str.padLeft(s, len, ch) str.padRight(s, len, ch)
+str.format(num, decimals)
 ```
 
-## 10. 함수
-
-함수는 `func` 키워드를 사용하여 선언합니다:
+### arr
 
 ```
-func 함수이름(매개변수: 타입): 반환타입 {
-    // 함수 본문
-}
+import arr
+
+arr.range(1, 10)      arr.range(0, 10, 2)   arr.fill(5, 0)
+arr.sum(nums)         arr.avg(nums)
+arr.arrMin(nums)      arr.arrMax(nums)
+arr.slice(nums, 1, 3) arr.count(nums, 2)
 ```
 
-void 함수는 반환 타입을 `void`로 지정합니다.
+---
 
-## 12. Null 처리
+## 예제
 
-null 값을 체크할 수 있습니다:
+`src/main/resources/examples/` 디렉토리에 예제 파일이 있습니다:
 
-```
-if (변수 is null) {
-    // 코드
-}
-```
-
-## 13. 문자열 템플릿
-
-문자열 내에서 `${}` 구문을 사용하여 변수를 포함할 수 있습니다:
-
-```
-"${name} language is ${age} year old"
-```
-
-## 14. 기타 문자열 메서드
-
-- `repeat(count)`: 문자열을 지정된 횟수만큼 반복
+| 파일 | 내용 |
+|------|------|
+| `01_hello_world.ezy` | 기본 출력 |
+| `02_variables.ezy` | 변수, 상수, 타입 |
+| `03_arithmetic.ezy` | 산술, 복합 대입 연산자 |
+| `04_string_interpolation.ezy` | 문자열 보간, 이스케이프 |
+| `05_if_else.ezy` | 조건문, 논리/비교 연산자 |
+| `06_loops.ezy` | for, while, break, continue |
+| `07_arrays.ezy` | 배열 선언, 순회, 메서드 |
+| `08_functions.ezy` | 함수, 재귀 |
+| `09_switch.ezy` | switch 콜론/화살표 스타일 |
+| `10_increment_decrement.ezy` | 증감 연산자 |
+| `11_type_check_cast.ezy` | is, as |
+| `12_string_methods.ezy` | 문자열 메서드 |
+| `13_array_methods.ezy` | 배열 메서드 |
+| `14_comments.ezy` | 주석 |
+| `15_import_module.ezy` | 사용자 모듈 import |
+| `16_nested_loops.ezy` | 중첩 반복 |
+| `17_bubble_sort.ezy` | 버블 정렬 |
+| `18_calculator.ezy` | 계산기 |
+| `19_scope.ezy` | 블록 스코프 |
+| `20_unary_operators.ezy` | 단항 연산자 |
+| `21_chained_comparison.ezy` | 연쇄 비교 |
+| `22_constrained_types.ezy` | 범위 제한 타입 |
+| `23_test_block.ezy` | 내장 테스트 |
+| `24_memoization.ezy` | 메모이제이션 |
+| `25_math_module.ezy` | math 모듈 |
+| `26_str_module.ezy` | str 모듈 |
+| `27_arr_module.ezy` | arr 모듈 |
+| `28_namespace_import.ezy` | 네임스페이스 import |

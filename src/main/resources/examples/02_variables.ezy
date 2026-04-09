@@ -1,0 +1,21 @@
+// 변수와 상수
+// 타입을 명시하여 변수를 선언하고, $ 접두사로 상수를 선언한다
+
+// 변수 선언: 이름: 타입 = 값
+name: string = "EzyLang"
+age: number = 25
+pi: number = 3.14
+isActive: boolean = true
+
+println("이름: ${name}")
+println("나이: ${age}")
+println("파이: ${pi}")
+println("활성화: ${isActive}")
+
+// 변수 값 변경
+age = 26
+println("다음 해 나이: ${age}")
+
+// 상수 선언: $ 접두사 사용, 값 변경 불가
+$MAX_SIZE: number = 100
+println("최대 크기: ${MAX_SIZE}")

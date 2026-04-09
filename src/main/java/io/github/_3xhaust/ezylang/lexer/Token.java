@@ -96,6 +96,7 @@ public class Token {
         AS,
 
         FUNC,
+        MEMO,
 
         IMPORT,
         FROM,
@@ -106,6 +107,9 @@ public class Token {
         SWITCH,
         CASE,
         DEFAULT,
+
+        TEST,
+        ASSERT,
 
         LEFT_PAREN,
         RIGHT_PAREN,
