@@ -3,6 +3,7 @@ package io.github._3xhaust;
 import io.github._3xhaust.ezylang.exception.ParseException;
 import io.github._3xhaust.ezylang.lexer.Lexer;
 import io.github._3xhaust.ezylang.lexer.Token;
+import io.github._3xhaust.ezylang.ast.Ast.Program;
 import io.github._3xhaust.ezylang.parser.Parser;
 import io.github._3xhaust.interpreter.Interpreter;
 
@@ -14,12 +15,25 @@ import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
-        if (args.length != 1) {
-            System.out.println("Usage: java -jar ezylang-<version>.jar <source file>");
+        if (args.length < 1 || args.length > 2) {
+            System.out.println("Usage: java -jar ezylang-<version>.jar [test] <source file>");
             System.exit(1);
         }
 
-        String fileName = args[0];
+        boolean testMode = false;
+        String fileName;
+
+        if (args.length == 2 && args[0].equals("test")) {
+            testMode = true;
+            fileName = args[1];
+        } else if (args.length == 1) {
+            fileName = args[0];
+        } else {
+            System.out.println("Usage: java -jar ezylang-<version>.jar [test] <source file>");
+            System.exit(1);
+            return;
+        }
+
         try {
             if (!fileName.endsWith(".ezy")) throw new IOException("Invalid file extension: Must be '.ezy'");
 
@@ -28,10 +42,16 @@ public class Main {
             List<Token> tokens = lexer.scanTokens();
 
             Parser parser = new Parser(fileName, input, tokens);
-            Parser.Program program = parser.parse();
+            Program program = parser.parse();
 
             Interpreter interpreter = new Interpreter(fileName, input);
+            interpreter.setTestMode(testMode);
             interpreter.interpret(program);
+
+            if (testMode) {
+                System.out.println("\n=== " + interpreter.getTestsPassed() + " passed, " + interpreter.getTestsFailed() + " failed ===");
+                if (interpreter.getTestsFailed() > 0) System.exit(1);
+            }
         } catch (IOException e) {
             System.err.println(e.getMessage());
             System.exit(1);

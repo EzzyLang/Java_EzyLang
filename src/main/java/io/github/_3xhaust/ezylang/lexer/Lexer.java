@@ -20,6 +20,7 @@ public class Lexer {
         keywords.put("is", Token.TokenType.IS);
         keywords.put("as", Token.TokenType.AS);
         keywords.put("func", Token.TokenType.FUNC);
+        keywords.put("memo", Token.TokenType.MEMO);
         keywords.put("in", Token.TokenType.IN);
         keywords.put("print", Token.TokenType.PRINT);
         keywords.put("println", Token.TokenType.PRINTLN);
@@ -36,6 +37,8 @@ public class Lexer {
         keywords.put("switch", Token.TokenType.SWITCH);
         keywords.put("case", Token.TokenType.CASE);
         keywords.put("default", Token.TokenType.DEFAULT);
+        keywords.put("test", Token.TokenType.TEST);
+        keywords.put("assert", Token.TokenType.ASSERT);
     }
 
     private final String source;
@@ -44,6 +47,8 @@ public class Lexer {
     private int current = 0;
     private int line = 1;
     private int column = 1;
+    private int tokenStartColumn = 1;
+    private int tokenStartLine = 1;
 
     public Lexer(String source) {
         this.source = source;
@@ -52,6 +57,8 @@ public class Lexer {
     public List<Token> scanTokens() {
         while (!isAtEnd()) {
             start = current;
+            tokenStartColumn = column;
+            tokenStartLine = line;
             scanToken();
         }
 
@@ -109,10 +116,8 @@ public class Lexer {
             }
             case '/' -> {
                 if (match('/')) {
-                    // Single-line comment
                     while (peek() != '\n' && !isAtEnd()) advance();
                 } else if (match('*')) {
-                    // Block comment
                     blockComment();
                 } else if (match('=')) {
                     addToken(Token.TokenType.SLASH_EQUAL);
@@ -179,7 +184,7 @@ public class Lexer {
             case '"' -> string();
             case '\'' -> charLiteral();
 
-            case ' ', '\r', '\t' -> column++;
+            case ' ', '\r', '\t' -> {}
             case '\n' -> {
                 line++;
                 column = 1;
@@ -198,12 +203,10 @@ public class Lexer {
     }
 
     private void blockComment() {
-        // Continue until we find the closing */
         while (!isAtEnd()) {
             if (peek() == '*' && peekNext() == '/') {
-                // Found the end of the comment
-                advance(); // consume *
-                advance(); // consume /
+                advance();
+                advance();
                 return;
             } else if (peek() == '\n') {
                 line++;
@@ -214,14 +217,16 @@ public class Lexer {
             }
         }
 
-        // If we get here, the comment was never closed
         throw new RuntimeException("Unclosed block comment at line " + line + ", column " + column);
     }
 
     private void string() {
         StringBuilder value = new StringBuilder();
+        int braceDepth = 0;
 
-        while (peek() != '"' && !isAtEnd()) {
+        while (!isAtEnd()) {
+            if (peek() == '"' && braceDepth == 0) break;
+
             if (peek() == '\n') {
                 line++;
                 column = 1;
@@ -232,7 +237,6 @@ public class Lexer {
             if (c == '\\') {
                 if (isAtEnd()) throw new RuntimeException("Unterminated string at line " + line + ", column " + column);
                 c = advance();
-
                 switch (c) {
                     case 'n' -> value.append('\n');
                     case 't' -> value.append('\t');
@@ -241,6 +245,18 @@ public class Lexer {
                     default ->
                             throw new RuntimeException("Invalid escape sequence at line " + line + ", column " + column);
                 }
+            } else if (c == '$' && peek() == '{') {
+                value.append(c);
+                value.append(advance());
+                braceDepth++;
+            } else if (c == '{' && braceDepth > 0) {
+                value.append(c);
+                braceDepth++;
+            } else if (c == '}' && braceDepth > 0) {
+                value.append(c);
+                braceDepth--;
+            } else if (c == '"' && braceDepth > 0) {
+                value.append(c);
             } else {
                 value.append(c);
             }
@@ -344,7 +360,7 @@ public class Lexer {
     }
 
     private void addToken(Token.TokenType type, String value) {
-        tokens.add(new Token(type, value, line, column));
+        tokens.add(new Token(type, value, tokenStartLine, tokenStartColumn));
     }
 
     private boolean isAtEnd() {

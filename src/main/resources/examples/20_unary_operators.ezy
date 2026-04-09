@@ -1,0 +1,13 @@
+// 단항 연산자
+// 피연산자 하나에 작용하는 +, - 연산자를 다룬다
+
+x: number = 42
+println("x = ${x}")
+println("-x = ${-x}")   // 부호 반전
+println("+x = ${+x}")   // 양수 명시 (값 변경 없음)
+
+// 음수 값에 단항 연산자 적용
+a: number = -10
+b: number = 5
+println("${a} + ${b} = ${a + b}")
+println("${a} * ${b} = ${a * b}")

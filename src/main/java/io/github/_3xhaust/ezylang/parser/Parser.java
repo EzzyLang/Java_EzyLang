@@ -1,14 +1,12 @@
 package io.github._3xhaust.ezylang.parser;
 
+import io.github._3xhaust.ezylang.ast.Ast.*;
 import io.github._3xhaust.ezylang.exception.ParseException;
 import io.github._3xhaust.ezylang.lexer.Lexer;
 import io.github._3xhaust.ezylang.lexer.Token;
-import lombok.Getter;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 public class Parser {
     private final List<Token> tokens;
@@ -41,8 +39,12 @@ public class Parser {
         if (match(Token.TokenType.IMPORT)) {
             return parseImportStatement();
         }
+        if (match(Token.TokenType.MEMO)) {
+            consume(Token.TokenType.FUNC, "Expected 'func' after 'memo'");
+            return parseFunctionDecl(true);
+        }
         if (match(Token.TokenType.FUNC)) {
-            return parseFunctionDecl();
+            return parseFunctionDecl(false);
         }
         if (match(Token.TokenType.IDENTIFIER)) {
             Token identifierToken = previous();
@@ -108,6 +110,12 @@ public class Parser {
             Token continueToken = previous();
             return new ContinueStatement(continueToken.getLine(), continueToken.getColumn());
         }
+        if (match(Token.TokenType.TEST)) {
+            return parseTestBlock();
+        }
+        if (match(Token.TokenType.ASSERT)) {
+            return parseAssertStatement();
+        }
         if (match(Token.TokenType.IF)) {
             return parseIfStatement();
         }
@@ -128,29 +136,7 @@ public class Parser {
     private Node parseImportStatement() throws ParseException {
         Token importToken = previous();
         String moduleName = consume(Token.TokenType.IDENTIFIER, "Expected module name after 'import'").getValue();
-
-        List<ImportItem> items = new ArrayList<>();
-
-        if (match(Token.TokenType.ASTERISK)) {
-            items.add(new ImportItem("*", null, false));
-        } else {
-            do {
-                boolean isConstant = match(Token.TokenType.DOLLAR); // $로 시작하는지 확인
-                String name;
-                if (isConstant) {
-                    name = consume(Token.TokenType.IDENTIFIER, "Expected identifier after '$'").getValue();
-                } else {
-                    name = consume(Token.TokenType.IDENTIFIER, "Expected identifier for import item").getValue();
-                }
-                String alias = null;
-                if (match(Token.TokenType.AS)) {
-                    alias = consume(Token.TokenType.IDENTIFIER, "Expected alias name after 'as'").getValue();
-                }
-                items.add(new ImportItem(name, alias, isConstant));
-            } while (match(Token.TokenType.COMMA));
-        }
-
-        return new ImportStatement(moduleName, items, importToken.getLine(), importToken.getColumn());
+        return new ImportStatement(moduleName, new ArrayList<>(), importToken.getLine(), importToken.getColumn());
     }
 
     private Node parseFromImportStatement() throws ParseException {
@@ -163,7 +149,7 @@ public class Parser {
             items.add(new ImportItem("*", null, false));
         } else {
             do {
-                boolean isConstant = match(Token.TokenType.DOLLAR); // $로 시작하는지 확인
+                boolean isConstant = match(Token.TokenType.DOLLAR);
                 String name;
                 if (isConstant) {
                     name = consume(Token.TokenType.IDENTIFIER, "Expected identifier after '$'").getValue();
@@ -187,7 +173,7 @@ public class Parser {
         return new ReturnStatement(value, returnToken.getLine(), returnToken.getColumn());
     }
 
-    private Node parseFunctionDecl() throws ParseException {
+    private Node parseFunctionDecl(boolean isMemo) throws ParseException {
         String name = consume(Token.TokenType.IDENTIFIER, "Expected function name").getValue();
         consume(Token.TokenType.LEFT_PAREN, "Expected '(' after function name");
 
@@ -217,7 +203,7 @@ public class Parser {
         }
 
         Node body = parseStatement();
-        return new FunctionDecl(name, paramNames, paramTypes, isArrayTypes, returnType, isReturnArray, body, previous().getLine(), previous().getColumn());
+        return new FunctionDecl(name, paramNames, paramTypes, isArrayTypes, returnType, isReturnArray, isMemo, body, previous().getLine(), previous().getColumn());
     }
 
     private Node parseFunctionCall() throws ParseException {
@@ -335,6 +321,20 @@ public class Parser {
         return new ForStatement(identifier, type, start, null, null, body, start.getLine(), start.getColumn());
     }
 
+    private Node parseTestBlock() throws ParseException {
+        Token testToken = previous();
+        Token nameToken = consume(Token.TokenType.STRING_LITERAL, "Expected test name string after 'test'");
+        consume(Token.TokenType.LEFT_BRACE, "Expected '{' after test name");
+        Node body = parseBlock();
+        return new TestBlock(nameToken.getValue(), body, testToken.getLine(), testToken.getColumn());
+    }
+
+    private Node parseAssertStatement() throws ParseException {
+        Token assertToken = previous();
+        Node expression = parseExpression();
+        return new AssertStatement(expression, assertToken.getLine(), assertToken.getColumn());
+    }
+
     private Node parseIfStatement() throws ParseException {
         consume(Token.TokenType.LEFT_PAREN, "Expected '(' after 'if'");
         Node condition = parseExpression();
@@ -359,6 +359,25 @@ public class Parser {
         Token typeToken = peek();
         advance();
 
+        Constraint constraint = null;
+        if (match(Token.TokenType.LEFT_PAREN)) {
+            if (typeToken.getToken() == Token.TokenType.NUMBER) {
+                Node min = parseExpression();
+                consume(Token.TokenType.DOT_DOT, "Expected '..' in range constraint");
+                Node max = parseExpression();
+                constraint = new Constraint(min, max);
+            } else if (typeToken.getToken() == Token.TokenType.STRING || typeToken.getToken() == Token.TokenType.CHAR) {
+                List<Node> allowedValues = new ArrayList<>();
+                do {
+                    allowedValues.add(parseExpression());
+                } while (match(Token.TokenType.COMMA));
+                constraint = new Constraint(allowedValues);
+            } else {
+                throw new ParseException(fileName, "Constraints not supported for type '" + typeToken.getValue() + "'", typeToken.getLine(), typeToken.getColumn(), getErrorLine(typeToken.getLine()));
+            }
+            consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after constraint");
+        }
+
         boolean isArray = isArrayType();
 
         consume(Token.TokenType.EQUAL, "Expected '=' after type");
@@ -367,7 +386,7 @@ public class Parser {
         validateType(initializer, typeToken, isArray);
 
         return isConstant ? new ConstantDecl(identifier, typeToken, initializer, typeToken.getLine(), typeToken.getColumn()) :
-                new VariableDecl(typeToken, identifier, isArray, initializer, typeToken.getLine(), typeToken.getColumn());
+                new VariableDecl(typeToken, identifier, isArray, initializer, constraint, typeToken.getLine(), typeToken.getColumn());
     }
 
     private boolean isArrayType() throws ParseException {
@@ -435,7 +454,21 @@ public class Parser {
 
             baseString.append(rawString, startIndex, dollarIndex);
 
-            int endIndex = rawString.indexOf("}", dollarIndex + 2);
+            int endIndex = -1;
+            int depth = 1;
+            boolean inNestedString = false;
+            for (int i = dollarIndex + 2; i < rawString.length(); i++) {
+                char ch = rawString.charAt(i);
+                if (ch == '"') {
+                    inNestedString = !inNestedString;
+                } else if (!inNestedString) {
+                    if (ch == '{') depth++;
+                    else if (ch == '}') {
+                        depth--;
+                        if (depth == 0) { endIndex = i; break; }
+                    }
+                }
+            }
             if (endIndex == -1) {
                 throw new ParseException(fileName, "Unclosed string interpolation expression", literal.getLine(), literal.getColumn(), getErrorLine(literal.getLine()));
             }
@@ -481,6 +514,11 @@ public class Parser {
                 Token type = peek();
                 advance();
                 left = new TypeCastExpr(left, type, left.getLine(), left.getColumn());
+            } else if (isComparisonOperator(operator) && left instanceof BinaryExpr prevBinary && isComparisonOperator(prevBinary.getOperator())) {
+                Node right = parseUnaryExpression();
+                Node chainedRight = new BinaryExpr(prevBinary.getRight(), operator, right, operator.getLine(), operator.getColumn());
+                Token andToken = new Token(Token.TokenType.AND, "&&", operator.getLine(), operator.getColumn());
+                left = new BinaryExpr(left, andToken, chainedRight, left.getLine(), left.getColumn());
             } else {
                 Node right = parseUnaryExpression();
                 left = new BinaryExpr(left, operator, right, left.getLine(), left.getColumn());
@@ -490,8 +528,15 @@ public class Parser {
         return left;
     }
 
+    private boolean isComparisonOperator(Token token) {
+        return switch (token.getToken()) {
+            case LESS_THAN, GREATER_THAN, LESS_THAN_OR_EQUAL, GREATER_THAN_OR_EQUAL, EQUAL_EQUAL, NOT_EQUAL -> true;
+            default -> false;
+        };
+    }
+
     private Node parseUnaryExpression() throws ParseException {
-        if (match(Token.TokenType.MINUS, Token.TokenType.PLUS)) {
+        if (match(Token.TokenType.MINUS, Token.TokenType.PLUS, Token.TokenType.BANG)) {
             Token operator = previous();
             Node operand = parseUnaryExpression();
             return new UnaryExpr(operator, operand, operator.getLine(), operator.getColumn());
@@ -588,15 +633,19 @@ public class Parser {
                 expr = new ArrayAccess(token.getValue(), index, token.getLine(), token.getColumn());
             } else if (match(Token.TokenType.DOT)) {
                 Token methodToken = consume(Token.TokenType.IDENTIFIER, "Expected method name after '.'");
-                consume(Token.TokenType.LEFT_PAREN, "Expected '(' after method name");
-                List<Node> arguments = new ArrayList<>();
-                if (!check(Token.TokenType.RIGHT_PAREN)) {
-                    do {
-                        arguments.add(parseExpression());
-                    } while (match(Token.TokenType.COMMA));
+                if (match(Token.TokenType.LEFT_PAREN)) {
+                    List<Node> arguments = new ArrayList<>();
+                    if (!check(Token.TokenType.RIGHT_PAREN)) {
+                        do {
+                            arguments.add(parseExpression());
+                        } while (match(Token.TokenType.COMMA));
+                    }
+                    consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
+                    expr = new MethodCall(token.getValue(), methodToken.getValue(), arguments, null, token.getLine(), token.getColumn());
+                } else {
+                    expr = new MethodCall(token.getValue(), methodToken.getValue(), new ArrayList<>(), null, token.getLine(), token.getColumn());
+                    ((MethodCall) expr).setPropertyAccess(true);
                 }
-                consume(Token.TokenType.RIGHT_PAREN, "Expected ')' after arguments");
-                expr = new MethodCall(token.getValue(), methodToken.getValue(), arguments, null, token.getLine(), token.getColumn());
             } else {
                 expr = new Identifier(token.getValue(), token.getLine(), token.getColumn());
             }
@@ -683,680 +732,4 @@ public class Parser {
         return tokens.get(current - 1);
     }
 
-    public interface Visitor<R> {
-        R visitProgram(Program program) throws ParseException;
-
-        R visitVariableDecl(VariableDecl variableDecl) throws ParseException;
-
-        R visitConstantDecl(ConstantDecl constantDecl) throws ParseException;
-
-        R visitPrintStatement(PrintStatement printStatement) throws ParseException;
-
-        R visitBinaryExpr(BinaryExpr binaryExpr) throws ParseException;
-
-        R visitLiteral(Literal literal);
-
-        R visitIdentifier(Identifier identifier) throws ParseException;
-
-        R visitArrayAccess(ArrayAccess arrayAccess) throws ParseException;
-
-        R visitIfStatement(IfStatement ifStatement) throws ParseException;
-
-        R visitForStatement(ForStatement forStatement) throws ParseException;
-
-        R visitArrayLiteral(ArrayLiteral arrayLiteral) throws ParseException;
-
-        R visitBlock(Block block) throws ParseException;
-
-        R visitUnaryExpr(UnaryExpr unaryExpr) throws ParseException;
-
-        R visitInterpolatedString(InterpolatedString interpolatedString) throws ParseException;
-
-        R visitWhileStatement(WhileStatement whileStatement) throws ParseException;
-
-        R visitAssignmentStatement(AssignmentStatement assignmentStatement) throws ParseException;
-
-        R visitTypeCastExpr(TypeCastExpr typeCastExpr) throws ParseException;
-
-        R visitTypeCheckExpr(TypeCheckExpr typeCheckExpr) throws ParseException;
-
-        R visitContinueStatement(ContinueStatement continueStatement) throws ParseException;
-
-        R visitBreakStatement(BreakStatement breakStatement) throws ParseException;
-
-        R visitSwitchCase(SwitchCase switchCase) throws ParseException;
-
-        R visitSwitchStatement(SwitchStatement switchStatement) throws ParseException;
-
-        R visitFunctionDecl(FunctionDecl functionDecl) throws ParseException;
-
-        R visitFunctionCall(FunctionCall functionCall) throws ParseException;
-
-        R visitMethodCall(MethodCall methodCall) throws ParseException;
-
-        R visitExpressionStatement(ExpressionStatement expressionStatement) throws ParseException;
-
-        R visitImportStatement(ImportStatement importStatement) throws ParseException;
-
-        R visitReturnStatement(ReturnStatement returnStatement) throws ParseException;
-
-        R visitIncrementDecrementExpr(IncrementDecrementExpr incrementDecrementExpr) throws ParseException;
-    }
-
-    @Getter
-    public abstract static class Node {
-        protected int line;
-        protected int column;
-
-        public abstract <R> R accept(Visitor<R> visitor) throws ParseException;
-    }
-
-    @Getter
-    public static class Program extends Node {
-        private final List<Node> statements;
-
-        Program(List<Node> statements) {
-            this.statements = statements;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitProgram(this);
-        }
-    }
-
-    @Getter
-    public static class VariableDecl extends Node {
-        private final Token type;
-        private final String identifier;
-        private final boolean isArray;
-        private final Node initializer;
-
-        VariableDecl(Token type, String identifier, boolean isArray, Node initializer, int line, int column) {
-            this.type = type;
-            this.identifier = identifier;
-            this.isArray = isArray;
-            this.initializer = initializer;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitVariableDecl(this);
-        }
-    }
-
-    @Getter
-    public static class ConstantDecl extends Node {
-        private final String identifier;
-        private final Token type;
-        private final Node value;
-
-        ConstantDecl(String identifier, Token type, Node value, int line, int column) {
-            this.identifier = identifier;
-            this.type = type;
-            this.value = value;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitConstantDecl(this);
-        }
-    }
-
-    @Getter
-    public static class PrintStatement extends Node {
-        private final Node expression;
-        private final boolean isPrintln;
-
-        PrintStatement(Node expression, boolean isPrintln, int line, int column) {
-            this.expression = expression;
-            this.isPrintln = isPrintln;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitPrintStatement(this);
-        }
-    }
-
-    @Getter
-    public static class IfStatement extends Node {
-        private final Node condition;
-        private final Node thenBranch;
-        private final Node elseBranch;
-
-        IfStatement(Node condition, Node thenBranch, Node elseBranch, int line, int column) {
-            this.condition = condition;
-            this.thenBranch = thenBranch;
-            this.elseBranch = elseBranch;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitIfStatement(this);
-        }
-    }
-
-    @Getter
-    public static class ForStatement extends Node {
-        private final String identifier;
-        private final Token type;
-        private final Node start;
-        private final Node end;
-        private final Node step;
-        private final Node body;
-
-        ForStatement(String identifier, Token type, Node start, Node end, Node step, Node body, int line, int column) {
-            this.identifier = identifier;
-            this.type = type;
-            this.start = start;
-            this.end = end;
-            this.step = step;
-            this.body = body;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitForStatement(this);
-        }
-    }
-
-    @Getter
-    public static class BinaryExpr extends Node {
-        private final Node left;
-        private final Token operator;
-        private final Node right;
-
-        BinaryExpr(Node left, Token operator, Node right, int line, int column) {
-            this.left = left;
-            this.operator = operator;
-            this.right = right;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitBinaryExpr(this);
-        }
-    }
-
-    @Getter
-    public static class Literal extends Node {
-        private final Object value;
-        private final String type;
-
-        public Literal(Object value, String type, int line, int column) {
-            this.value = value;
-            this.type = type;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) {
-            return visitor.visitLiteral(this);
-        }
-    }
-
-    @Getter
-    public static class Identifier extends Node {
-        private final String name;
-
-        Identifier(String name, int line, int column) {
-            this.name = name;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitIdentifier(this);
-        }
-    }
-
-    @Getter
-    public static class ArrayAccess extends Node {
-        private final String identifier;
-        private final Node index;
-
-        ArrayAccess(String identifier, Node index, int line, int column) {
-            this.identifier = identifier;
-            this.index = index;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitArrayAccess(this);
-        }
-    }
-
-    @Getter
-    public static class ArrayLiteral extends Node {
-        private final List<Node> elements;
-
-        public ArrayLiteral(List<Node> elements, int line, int column) {
-            this.elements = elements;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitArrayLiteral(this);
-        }
-
-        public String getType() {
-            if (elements.isEmpty()) {
-                return "unknown[]";
-            }
-
-            if (elements.get(0) instanceof Literal literal) {
-                String firstElementType = literal.getType();
-
-                for (Node element : elements) {
-                    if (element instanceof Literal literalElement) {
-                        String currentType = literalElement.getType();
-
-                        if (!currentType.equals(firstElementType)) {
-                            throw new RuntimeException("Array elements must have the same type");
-                        }
-                    }
-                }
-
-                return firstElementType + "[]";
-            }
-
-            return null;
-        }
-    }
-
-    @Getter
-    public static class Block extends Node {
-        private final List<Node> statements;
-
-        public Block(List<Node> statements, int line, int column) {
-            this.statements = statements;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitBlock(this);
-        }
-
-        public List<Node> getStatements() {
-            return Collections.unmodifiableList(statements);
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("Block {\n");
-            for (Node statement : statements) {
-                sb.append("  ").append(statement.toString().replace("\n", "\n  ")).append("\n");
-            }
-            sb.append("}");
-            return sb.toString();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Block block = (Block) o;
-            return Objects.equals(statements, block.statements);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(statements);
-        }
-    }
-
-    @Getter
-    public static class UnaryExpr extends Node {
-        private final Token operator;
-        private final Node operand;
-
-        UnaryExpr(Token operator, Node operand, int line, int column) {
-            this.operator = operator;
-            this.operand = operand;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitUnaryExpr(this);
-        }
-    }
-
-    @Getter
-    public static class InterpolatedString extends Node {
-        private final String rawString;
-        private final String baseString;
-        private final List<Node> expressions;
-
-        InterpolatedString(String rawString, String baseString, List<Node> expressions, int line, int column) {
-            this.rawString = rawString;
-            this.baseString = baseString;
-            this.expressions = expressions;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitInterpolatedString(this);
-        }
-    }
-
-    @Getter
-    public static class WhileStatement extends Node {
-        private final Node condition;
-        private final Node body;
-
-        WhileStatement(Node condition, Node body, int line, int column) {
-            this.condition = condition;
-            this.body = body;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitWhileStatement(this);
-        }
-    }
-
-    @Getter
-    public static class AssignmentStatement extends Node {
-        private final Node target;
-        private final Token operator;
-        private final Node value;
-
-        AssignmentStatement(Node target, Token operator, Node value, int line, int column) {
-            this.target = target;
-            this.operator = operator;
-            this.value = value;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitAssignmentStatement(this);
-        }
-    }
-
-    @Getter
-    public static class TypeCheckExpr extends Node {
-        private final Node expression;
-        private final Token type;
-
-        TypeCheckExpr(Node expression, Token type, int line, int column) {
-            this.expression = expression;
-            this.type = type;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitTypeCheckExpr(this);
-        }
-    }
-
-    @Getter
-    public static class TypeCastExpr extends Node {
-        private final Node expression;
-        private final Token targetType;
-
-        TypeCastExpr(Node expression, Token targetType, int line, int column) {
-            this.expression = expression;
-            this.targetType = targetType;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitTypeCastExpr(this);
-        }
-    }
-
-    @Getter
-    public static class BreakStatement extends Node {
-        BreakStatement(int line, int column) {
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitBreakStatement(this);
-        }
-    }
-
-    @Getter
-    public static class ContinueStatement extends Node {
-        ContinueStatement(int line, int column) {
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitContinueStatement(this);
-        }
-    }
-
-    @Getter
-    public static class SwitchStatement extends Node {
-        private final Node expression;
-        private final List<SwitchCase> cases;
-        private final Node defaultCase;
-
-        SwitchStatement(Node expression, List<SwitchCase> cases, Node defaultCase, int line, int column) {
-            this.expression = expression;
-            this.cases = cases;
-            this.defaultCase = defaultCase;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitSwitchStatement(this);
-        }
-    }
-
-    @Getter
-    public static class SwitchCase extends Node {
-        private final Node value;
-        private final Node body;
-        private final boolean isArrowStyle;
-
-        SwitchCase(Node value, Node body, boolean isArrowStyle, int line, int column) {
-            this.value = value;
-            this.body = body;
-            this.isArrowStyle = isArrowStyle;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitSwitchCase(this);
-        }
-    }
-
-    @Getter
-    public static class FunctionDecl extends Node {
-        private final String name;
-        private final List<String> paramNames;
-        private final List<Token> paramTypes;
-        private final List<Boolean> isArrayTypes;
-        private final Token returnType;
-        private final Boolean isReturnTypeArray;
-        private final Node body;
-
-        public FunctionDecl(String name, List<String> paramNames, List<Token> paramTypes, List<Boolean> isArrayTypes, Token returnType, Boolean isReturnTypeArray, Node body, int line, int column) {
-            this.name = name;
-            this.paramNames = paramNames;
-            this.paramTypes = paramTypes;
-            this.isArrayTypes = isArrayTypes;
-            this.returnType = returnType;
-            this.isReturnTypeArray = isReturnTypeArray;
-            this.body = body;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitFunctionDecl(this);
-        }
-    }
-
-    @Getter
-    public static class FunctionCall extends Node {
-        private final String name;
-        private final List<Node> arguments;
-
-        public FunctionCall(String name, List<Node> arguments, int line, int column) {
-            this.name = name;
-            this.arguments = arguments;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitFunctionCall(this);
-        }
-    }
-
-    public static class MethodCall extends Node {
-        private final String objectName;
-        private final String methodName;
-        private final List<Node> arguments;
-        private final Node objectNode;
-
-        public MethodCall(String objectName, String methodName, List<Node> arguments, Node objectNode, int line, int column) {
-            this.objectName = objectName;
-            this.methodName = methodName;
-            this.arguments = arguments;
-            this.objectNode = objectNode;
-            this.line = line;
-            this.column = column;
-        }
-
-        public String getObjectName() { return objectName; }
-        public String getMethodName() { return methodName; }
-        public List<Node> getArguments() { return arguments; }
-        public Node getObjectNode() { return objectNode; }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitMethodCall(this);
-        }
-    }
-
-    @Getter
-    public static class ExpressionStatement extends Node {
-        private final Node expression;
-
-        public ExpressionStatement(Node expression, int line, int column) {
-            this.expression = expression;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitExpressionStatement(this);
-        }
-    }
-
-    @Getter
-    public static class ImportStatement extends Node {
-        private final String moduleName;
-        private final List<ImportItem> items;
-
-        public ImportStatement(String moduleName, List<ImportItem> items, int line, int column) {
-            this.moduleName = moduleName;
-            this.items = items;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitImportStatement(this);
-        }
-    }
-
-    @Getter
-    public static class ImportItem {
-        private final String name;
-        private final String alias;
-        private final boolean isConstant;
-
-        public ImportItem(String name, String alias, boolean isConstant) {
-            this.name = name;
-            this.alias = alias;
-            this.isConstant = isConstant;
-        }
-    }
-
-    @Getter
-    public static class ReturnStatement extends Node {
-        private final Node value;
-
-        ReturnStatement(Node value, int line, int column) {
-            this.value = value;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitReturnStatement(this);
-        }
-    }
-
-    @Getter
-    public static class IncrementDecrementExpr extends Node {
-        private final Node operand;
-        private final Token operator;
-        private final boolean isPrefix;
-
-        public IncrementDecrementExpr(Node operand, Token operator, boolean isPrefix, int line, int column) {
-            this.operand = operand;
-            this.operator = operator;
-            this.isPrefix = isPrefix;
-            this.line = line;
-            this.column = column;
-        }
-
-        @Override
-        public <R> R accept(Visitor<R> visitor) throws ParseException {
-            return visitor.visitIncrementDecrementExpr(this);
-        }
-    }
 }

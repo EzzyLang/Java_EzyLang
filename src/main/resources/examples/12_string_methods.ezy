@@ -1,0 +1,22 @@
+// 문자열 메서드
+// 문자열 객체에 내장된 메서드들을 다룬다
+
+text: string = "Hello, World!"
+
+// 기본 문자열 정보 조회
+println("문자열: ${text}")
+println("길이: ${text.length()}")
+println("3번째 문자: ${text.charAt(3)}")
+println("반복: ${text.repeat(2)}")
+
+// split()으로 구분자 기준 분할, join()으로 다시 합치기
+csv: string = "apple, banana, cherry"
+println("\nCSV: ${csv}")
+fruits: string[] = csv.split(", ")
+println("분할 결과:")
+for (fruit: string in fruits) {
+    println("  - ${fruit}")
+}
+
+joined: string = fruits.join(" | ")
+println("합친 결과: ${joined}")

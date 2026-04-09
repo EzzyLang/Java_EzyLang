@@ -1,0 +1,16 @@
+// 제약 타입
+// 변수가 가질 수 있는 값의 범위나 선택지를 타입 선언 시 제한할 수 있다
+
+// number(min..max): 숫자 범위 제약 — 0 이상 150 이하만 허용
+age: number(0..150) = 25
+println("나이: ${age}")
+
+age = 100
+println("변경 후 나이: ${age}")
+
+// char("값1", "값2", ...): 허용되는 값을 열거형처럼 제한
+grade: char("A", "B", "C", "D", "F") = "A"
+println("등급: ${grade}")
+
+grade = "B"
+println("변경 후 등급: ${grade}")

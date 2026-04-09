@@ -1,0 +1,5 @@
+// 기본 출력
+// println() 함수로 콘솔에 텍스트를 출력한다
+
+println("Hello, World!")
+println("안녕하세요, EzyLang!")

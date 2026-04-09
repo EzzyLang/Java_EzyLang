@@ -1,0 +1,34 @@
+// 함수 기반 계산기
+// 사칙연산과 거듭제곱을 각각 함수로 분리하여 구현한다
+
+func add(a: number, b: number): number {
+    return a + b
+}
+
+func subtract(a: number, b: number): number {
+    return a - b
+}
+
+func multiply(a: number, b: number): number {
+    return a * b
+}
+
+func divide(a: number, b: number): number {
+    return a / b
+}
+
+// 반복 곱셈으로 거듭제곱을 계산
+func power(base: number, exp: number): number {
+    result: number = 1
+    for (i: number in 1 .. exp) {
+        result = result * base
+    }
+    return result
+}
+
+println("=== 계산기 ===")
+println("10 + 3 = ${add(10, 3)}")
+println("10 - 3 = ${subtract(10, 3)}")
+println("10 * 3 = ${multiply(10, 3)}")
+println("10 / 3 = ${divide(10, 3)}")
+println("2 ^ 10 = ${power(2, 10)}")

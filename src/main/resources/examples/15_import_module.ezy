@@ -1,0 +1,8 @@
+// 모듈 임포트
+// from ... import 문법으로 외부 파일의 함수와 상수를 가져온다
+
+// mylib.ezy 에서 add 함수와 PI 상수를 선택적으로 임포트
+from mylib import add, $PI
+
+println("add(3, 4) = ${add(3, 4)}")
+println("PI = ${PI}")

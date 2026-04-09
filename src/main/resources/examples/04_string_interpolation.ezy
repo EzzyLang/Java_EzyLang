@@ -1,0 +1,19 @@
+// 문자열 보간과 이스케이프
+// ${} 문법으로 문자열 안에 변수나 식을 삽입할 수 있다
+
+name: string = "World"
+count: number = 42
+
+// ${변수} 또는 ${식}으로 문자열 안에 값을 삽입
+println("Hello, ${name}!")
+println("The answer is ${count}")
+println("${name} has ${count} items")
+
+// + 연산자로 문자열 이어붙이기
+greeting: string = "Hello" + " " + "EzyLang"
+println(greeting)
+
+// 이스케이프 시퀀스: \n(줄바꿈), \t(탭), \"(큰따옴표), \\(백슬래시)
+println("줄바꿈:\n\t탭 들여쓰기")
+println("따옴표: \"큰따옴표\"")
+println("백슬래시: \\")

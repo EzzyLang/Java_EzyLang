@@ -1,0 +1,41 @@
+// 반복문
+// for 범위 순환, while, break, continue를 다룬다
+
+// for...in 범위: 1 .. 5 는 1부터 5까지 순환
+println("=== 1부터 5까지 ===")
+for (i: number in 1 .. 5) {
+    println(i)
+}
+
+// 세 번째 인자로 스텝(증가량)을 지정
+println("\n=== 0부터 10까지 2씩 ===")
+for (i: number in 0 .. 10 .. 2) {
+    println(i)
+}
+
+// while: 조건이 참인 동안 반복
+println("\n=== while 카운트다운 ===")
+count: number = 5
+while (count > 0) {
+    println("${count}...")
+    count -= 1
+}
+println("발사!")
+
+// break: 조건 만족 시 루프를 즉시 종료
+println("\n=== break 테스트 ===")
+for (i: number in 1 .. 100) {
+    if (i > 5) {
+        break
+    }
+    println(i)
+}
+
+// continue: 해당 반복을 건너뛰고 다음으로 진행
+println("\n=== continue (홀수만) ===")
+for (i: number in 1 .. 10) {
+    if (i % 2 == 0) {
+        continue
+    }
+    println(i)
+}

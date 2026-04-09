@@ -1,0 +1,52 @@
+// 배열
+// 배열 선언, 순환, 인덱스 접근, 내장 메서드를 다룬다
+
+// 타입[] 으로 배열 선언
+numbers: number[] = [10, 20, 30, 40, 50]
+names: string[] = ["Alice", "Bob", "Charlie"]
+
+// for...in 으로 배열 순환
+println("=== 숫자 배열 ===")
+for (n: number in numbers) {
+    println(n)
+}
+
+println("\n=== 이름 배열 ===")
+for (name: string in names) {
+    println(name)
+}
+
+// 인덱스로 요소에 접근하거나 수정
+println("\n=== 인덱스 접근 ===")
+println("첫 번째: ${numbers[0]}")
+println("세 번째: ${numbers[2]}")
+
+numbers[0] = 99
+println("수정 후 첫 번째: ${numbers[0]}")
+
+// 내장 메서드: length, contains, indexOf, isEmpty
+println("\n길이: ${numbers.length()}")
+
+println("contains 30: ${numbers.contains(30)}")
+println("indexOf 40: ${numbers.indexOf(40)}")
+println("isEmpty: ${numbers.isEmpty()}")
+
+// sort()와 reverse()로 배열 정렬/역순
+nums: number[] = [5, 2, 8, 1, 9]
+println("\n정렬 전:")
+for (n: number in nums) {
+    print("${n} ")
+}
+nums.sort()
+println("\n정렬 후:")
+for (n: number in nums) {
+    print("${n} ")
+}
+println("")
+
+nums.reverse()
+println("역순:")
+for (n: number in nums) {
+    print("${n} ")
+}
+println("")
